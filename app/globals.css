@@ -2,22 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * shadcn/ui (base-nova style) reads all of these as plain CSS custom
+ * properties consumed directly by Tailwind color utilities (bg-primary,
+ * border-border, etc.) — they were never defined before this pass, which
+ * left every shadcn primitive (Button, Badge, Card, Dialog, Input, Select,
+ * Tabs, Table, Sheet, Toast) unstyled.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #faf9f8;
+  --foreground: #1c1b1a;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --card: #ffffff;
+  --card-foreground: #1c1b1a;
+
+  --popover: #ffffff;
+  --popover-foreground: #1c1b1a;
+
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f0efec;
+  --secondary-foreground: #1c1b1a;
+
+  --muted: #f0efec;
+  --muted-foreground: #6b6862;
+
+  --accent: #ecebfe;
+  --accent-foreground: #1c1b1a;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e7e5e2;
+  --input: #e7e5e2;
+  --ring: #4f46e5;
+
+  --radius-md: 0.5rem;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer utilities {
