@@ -57,6 +57,9 @@ export async function fetchAhrefsMetrics(domain: string): Promise<AhrefsMetricsR
   const metrics = await ahrefsGet<MetricsResponse>('/site-explorer/metrics', base)
 
   await sleep(REQUEST_DELAY_MS)
+  const metricsUs = await ahrefsGet<MetricsResponse>('/site-explorer/metrics', { ...base, country: 'us' })
+
+  await sleep(REQUEST_DELAY_MS)
   const domainRating = await ahrefsGet<DomainRatingResponse>('/site-explorer/domain-rating', base)
 
   await sleep(REQUEST_DELAY_MS)
@@ -84,7 +87,9 @@ export async function fetchAhrefsMetrics(domain: string): Promise<AhrefsMetricsR
   return {
     domain_rating: Math.round(domainRating.domain_rating.domain_rating),
     organic_traffic: metrics.metrics.org_traffic,
+    organic_traffic_us: metricsUs.metrics.org_traffic,
     organic_keywords: metrics.metrics.org_keywords,
+    organic_keywords_us: metricsUs.metrics.org_keywords,
     keywords_top_3: metrics.metrics.org_keywords_1_3,
     keywords_top_10: keywordsTop10,
     traffic_value_monthly: metrics.metrics.org_cost ? metrics.metrics.org_cost / 100 : 0,

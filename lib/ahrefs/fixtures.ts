@@ -1,7 +1,9 @@
 export interface AhrefsMetricsResult {
   domain_rating: number
   organic_traffic: number
+  organic_traffic_us: number
   organic_keywords: number
+  organic_keywords_us: number
   keywords_top_3: number
   keywords_top_10: number
   traffic_value_monthly: number
@@ -14,7 +16,8 @@ export interface AhrefsMetricsResult {
 // until AHREFS_API_KEY is configured (CLAUDE.md Section 7.1).
 export const AHREFS_FIXTURES: Record<string, AhrefsMetricsResult> = {
   'expertiseaccelerated.com': {
-    domain_rating: 26, organic_traffic: 540, organic_keywords: 245,
+    domain_rating: 26, organic_traffic: 540, organic_traffic_us: 495,
+    organic_keywords: 245, organic_keywords_us: 198,
     keywords_top_3: 36, keywords_top_10: 192, traffic_value_monthly: 3050,
     referring_domains_total: 905, avg_keywords_per_page: 4.1,
     indexed_content_pages: 61,
