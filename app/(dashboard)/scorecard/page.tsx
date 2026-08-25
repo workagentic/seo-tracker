@@ -14,7 +14,9 @@ export default async function ScorecardPage({
   const snapshots = await getAllSnapshots(supabase)
 
   const selected = (quarter && quarter in QUARTERLY_TARGETS ? quarter : 'baseline') as keyof typeof QUARTERLY_TARGETS
-  const snapshot = snapshots.find((s) => s.quarter_label === (selected === 'baseline' ? 'Baseline' : selected)) ?? null
+  // getAllSnapshots is ordered oldest -> newest, so the last match for a quarter is the latest one.
+  const matches = snapshots.filter((s) => s.quarter_label === (selected === 'baseline' ? 'Baseline' : selected))
+  const snapshot = matches.length > 0 ? matches[matches.length - 1] : null
   const target = QUARTERLY_TARGETS[selected]
 
   return (

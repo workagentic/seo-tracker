@@ -19,5 +19,6 @@ export async function getAllSnapshots(supabase: SupabaseClient): Promise<MetricS
     .from('metric_snapshots')
     .select('*')
     .order('snapshot_date', { ascending: true })
+    .order('created_at', { ascending: true })
   return (data as MetricSnapshot[]) ?? []
 }
