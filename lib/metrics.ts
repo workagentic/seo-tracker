@@ -8,6 +8,7 @@ export async function getLatestSnapshot(
     .from('metric_snapshots')
     .select('*')
     .order('snapshot_date', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
   return (data as MetricSnapshot) ?? null
