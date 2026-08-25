@@ -12,3 +12,14 @@ Internal SEO tracking and accountability dashboard for the Expertise Accelerated
 1. Run migrations (see Database setup).
 2. `pnpm seed:users` — creates the 9 auth users + profiles. Note the printed temp passwords.
 3. Run `supabase/seed.sql` in the Supabase SQL editor — seeds the 34 tasks, baseline snapshot, audit findings, and starter keywords.
+
+## Verification checklist (v1 Definition of Done)
+1. `pnpm seed:users` then run `supabase/seed.sql` — confirm all 9 team members' rows exist in `profiles`.
+2. Log in as each of the 9 users — confirm each reaches `/dashboard` and the sidebar reflects their role (only Abdullah sees "Admin").
+3. Visit `/tasks` — confirm all 34 actions are listed with correct owners/due dates; confirm an `owner` can change status only on their own tasks (try as Talha Azeem vs. as Usman Ali).
+4. Visit `/scorecard?quarter=baseline` — confirm all 12 rows show the baseline actual vs. target with correct RAG colors.
+5. As Abdullah, click "Sync Ahrefs data" on `/dashboard` — confirm a new `metric_snapshots` row appears and stat tiles update, and confirm `referring_domains_quality` is untouched by the sync.
+6. Visit `/audit` — confirm all 17 seeded findings appear and filters work.
+7. As Abdullah, visit `/admin/users` and create a test user; visit `/admin/metrics` and submit a manual snapshot.
+8. Visit `/competitors`, add a competitor as Abdullah, confirm it appears; confirm a non-admin cannot see the "Add competitor" button.
+9. Visit `/keywords`, import a small CSV, confirm rows appear.
