@@ -3,103 +3,103 @@
 insert into tasks (action_number, title, position_responsible, assigned_to, co_assigned_to, due_date, quarter)
 select 'A1', 'Terminate paid link-building vendor',
   'Haroon', (select id from profiles where full_name = 'Haroon'),
-  (select id from profiles where full_name = 'Tabish Khalid'), '2026-08-27', 'Q1'
+  (select id from profiles where full_name = 'Tabish Khalid'), '2026-08-27'::date, 'Q1'
 union all select 'A2', 'Programme kickoff and RACI sign-off',
   'Tabish Khalid', (select id from profiles where full_name = 'Tabish Khalid'),
-  null, '2026-08-27', 'Q1'
+  null, '2026-08-27'::date, 'Q1'
 union all select 'A3', 'Agree CPA review SLA',
   'Haroon', (select id from profiles where full_name = 'Haroon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-08-27', 'Q1'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-08-27'::date, 'Q1'
 union all select 'A4', 'Assign cross-training backups',
   'Tabish Khalid', (select id from profiles where full_name = 'Tabish Khalid'),
-  null, '2026-08-29', 'Q1'
+  null, '2026-08-29'::date, 'Q1'
 union all select 'A5', 'Stand up tracking infrastructure',
   'Abdullah Shekha', (select id from profiles where full_name = 'Abdullah Shekha'),
-  null, '2026-08-29', 'Q1'
+  null, '2026-08-29'::date, 'Q1'
 union all select 'A6', 'Fix eaccelerated.com redirect (302→301)',
   'Usman Ali', (select id from profiles where full_name = 'Usman Ali'),
-  (select id from profiles where full_name = 'Talha Azeem'), '2026-08-29', 'Q1'
+  (select id from profiles where full_name = 'Talha Azeem'), '2026-08-29'::date, 'Q1'
 union all select 'A7', 'Classify full referring-domain list (all 861)',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  null, '2026-09-02', 'Q1'
+  null, '2026-09-02'::date, 'Q1'
 union all select 'A8', 'Resolve UR 9.9 Cloudflare 404',
   'Usman Ali', (select id from profiles where full_name = 'Usman Ali'),
-  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-02', 'Q1'
+  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-02'::date, 'Q1'
 union all select 'A9', 'Brief all 15 striking-distance pages',
   'Najma Furqan', (select id from profiles where full_name = 'Najma Furqan'),
-  null, '2026-09-02', 'Q1'
+  null, '2026-09-02'::date, 'Q1'
 union all select 'A10', 'File disavow in Search Console',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  null, '2026-09-05', 'Q1'
+  null, '2026-09-05'::date, 'Q1'
 union all select 'A11', 'Recover UR 11.7 redirect chains',
   'Usman Ali', (select id from profiles where full_name = 'Usman Ali'),
-  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-05', 'Q1'
+  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-05'::date, 'Q1'
 union all select 'A12', 'Restore /fractional-cfo-services/',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-05', 'Q1'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-05'::date, 'Q1'
 union all select 'A13', 'Resolve HTTP/HTTPS duplication',
   'Usman Ali', (select id from profiles where full_name = 'Usman Ali'),
-  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-12', 'Q1'
+  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-12'::date, 'Q1'
 union all select 'A14', 'Resolve keyword cannibalisation',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-12', 'Q1'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-12'::date, 'Q1'
 union all select 'A15', 'Implement schema markup (Org, Service, FAQ, Breadcrumb)',
   'Usman Ali', (select id from profiles where full_name = 'Usman Ali'),
-  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-12', 'Q1'
+  (select id from profiles where full_name = 'Talha Azeem'), '2026-09-12'::date, 'Q1'
 union all select 'A16', 'Claim software partner directories',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  null, '2026-09-12', 'Q1'
+  null, '2026-09-12'::date, 'Q1'
 union all select 'A17', 'Claim TPM / CPG vendor listings',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  null, '2026-09-19', 'Q1'
+  null, '2026-09-19'::date, 'Q1'
 union all select 'A18', 'Full Ahrefs Site Audit and remediation',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  (select id from profiles where full_name = 'Usman Ali'), '2026-09-26', 'Q1'
+  (select id from profiles where full_name = 'Usman Ali'), '2026-09-26'::date, 'Q1'
 union all select 'A19', 'Optimise all 15 striking-distance pages',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-30', 'Q1'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-30'::date, 'Q1'
 union all select 'A20', 'Implement silo internal linking',
   'Talha Azeem', (select id from profiles where full_name = 'Talha Azeem'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-30', 'Q1'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-09-30'::date, 'Q1'
 union all select 'A21', 'Join chambers and associations',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  (select id from profiles where full_name = 'Haroon'), '2026-09-30', 'Q1'
+  (select id from profiles where full_name = 'Haroon'), '2026-09-30'::date, 'Q1'
 union all select 'A22', 'Field CPG Benchmark survey',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  (select id from profiles where full_name = 'Haroon'), '2026-09-30', 'Q1'
+  (select id from profiles where full_name = 'Haroon'), '2026-09-30'::date, 'Q1'
 union all select 'A23', 'Optimise 7 non-ranking service pages',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-10-31', 'Q2'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-10-31'::date, 'Q2'
 union all select 'A24', 'Build interactive calculators',
   'Hameed Ishaq', (select id from profiles where full_name = 'Hameed Ishaq'),
-  (select id from profiles where full_name = 'Usman Ali'), '2026-11-30', 'Q2'
+  (select id from profiles where full_name = 'Usman Ali'), '2026-11-30'::date, 'Q2'
 union all select 'A25', 'Launch glossary phase 1 (30 terms)',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-11-30', 'Q2'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-11-30'::date, 'Q2'
 union all select 'A26', 'Publish CPG Finance Benchmark Report',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  (select id from profiles where full_name = 'Hameed Ishaq'), '2026-12-31', 'Q2'
+  (select id from profiles where full_name = 'Hameed Ishaq'), '2026-12-31'::date, 'Q2'
 union all select 'A27', 'Build 6 pillar pages',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2026-12-31', 'Q2'
+  (select id from profiles where full_name = 'Najma Furqan'), '2026-12-31'::date, 'Q2'
 union all select 'A28', 'Complete podcast circuit round 1 (8+ appearances)',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  null, '2027-01-31', 'Q3'
+  null, '2027-01-31'::date, 'Q3'
 union all select 'A29', 'Secure contributed columns (Forbes/Entrepreneur/Inc.)',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  null, '2027-02-28', 'Q3'
+  null, '2027-02-28'::date, 'Q3'
 union all select 'A30', 'Glossary phase 2 (expand to 60 terms)',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2027-03-31', 'Q3'
+  (select id from profiles where full_name = 'Najma Furqan'), '2027-03-31'::date, 'Q3'
 union all select 'A31', 'Conversion optimisation on money pages',
   'Najma Furqan', (select id from profiles where full_name = 'Najma Furqan'),
-  (select id from profiles where full_name = 'Abdullah Shekha'), '2027-03-31', 'Q3'
+  (select id from profiles where full_name = 'Abdullah Shekha'), '2027-03-31'::date, 'Q3'
 union all select 'A32', 'Second research drop',
   'Syed Ali', (select id from profiles where full_name = 'Syed Ali'),
-  (select id from profiles where full_name = 'Hameed Ishaq'), '2027-06-30', 'Q4'
+  (select id from profiles where full_name = 'Hameed Ishaq'), '2027-06-30'::date, 'Q4'
 union all select 'A33', 'Glossary phase 3 and vertical expansion (90 terms)',
   'Lavi Shamoon', (select id from profiles where full_name = 'Lavi Shamoon'),
-  (select id from profiles where full_name = 'Najma Furqan'), '2027-09-30', 'Q5'
+  (select id from profiles where full_name = 'Najma Furqan'), '2027-09-30'::date, 'Q5'
 union all select 'A34', 'Re-run full report each quarter',
   'Tabish Khalid', (select id from profiles where full_name = 'Tabish Khalid'),
   (select id from profiles where full_name = 'Abdullah Shekha'), null, 'All';
