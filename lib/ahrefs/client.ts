@@ -98,3 +98,43 @@ export async function fetchAhrefsMetrics(domain: string): Promise<AhrefsMetricsR
     indexed_content_pages: indexedContentPages,
   }
 }
+
+export interface AhrefsCompetitorMetrics {
+  domain_rating: number
+  organic_traffic: number
+  organic_keywords: number
+  keywords_top_3: number
+  traffic_value_monthly: number
+  referring_domains_total: number
+}
+
+// CLAUDE.md Section 7.1: "Competitor comparison — GET /site-explorer/metrics for each
+// competitor domain". Competitors table has no US-split or content-depth columns, so this
+// only needs 3 of the 5 calls fetchAhrefsMetrics makes (skips organic-keywords/top-pages).
+export async function fetchAhrefsCompetitorMetrics(domain: string): Promise<AhrefsCompetitorMetrics> {
+  if (!process.env.AHREFS_API_KEY) {
+    throw new Error('AHREFS_API_KEY is not configured — competitor sync requires a live Ahrefs API key')
+  }
+
+  const date = new Date().toISOString().slice(0, 10)
+  const base = { target: domain, mode: 'subdomains', date }
+
+  const metrics = await ahrefsGet<MetricsResponse>('/site-explorer/metrics', base)
+
+  await sleep(REQUEST_DELAY_MS)
+  const domainRating = await ahrefsGet<DomainRatingResponse>('/site-explorer/domain-rating', base)
+
+  await sleep(REQUEST_DELAY_MS)
+  const backlinksStats = await ahrefsGet<BacklinksStatsResponse>('/site-explorer/backlinks-stats', base)
+
+  return {
+    domain_rating: Math.round(domainRating.domain_rating.domain_rating),
+    organic_traffic: metrics.metrics.org_traffic,
+    organic_keywords: metrics.metrics.org_keywords,
+    keywords_top_3: metrics.metrics.org_keywords_1_3,
+    traffic_value_monthly: metrics.metrics.org_cost ? metrics.metrics.org_cost / 100 : 0,
+    referring_domains_total: backlinksStats.metrics.live_refdomains,
+  }
+}
+
+export const AHREFS_INTER_DOMAIN_DELAY_MS = REQUEST_DELAY_MS
