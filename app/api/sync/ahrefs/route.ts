@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { MetricSnapshot } from '@/types'
 import { getCurrentProfile } from '@/lib/auth'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { fetchAhrefsMetrics } from '@/lib/ahrefs/client'
@@ -22,11 +23,11 @@ export async function POST() {
     )
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminSupabaseClient() as any
+  const admin = createAdminSupabaseClient()
   const quarter = getCurrentQuarter(new Date())
 
-  const { data, error } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (admin as any)
     .from('metric_snapshots')
     .insert({
       snapshot_date: new Date().toISOString().slice(0, 10),
@@ -51,5 +52,5 @@ export async function POST() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ snapshot: data })
+  return NextResponse.json({ snapshot: data as unknown as MetricSnapshot })
 }
