@@ -7,16 +7,16 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="w-full max-w-sm rounded-lg border bg-white p-8 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">EA SEO Tracker</h1>
-        <p className="mb-6 text-sm text-slate-500">Sign in with your EA account</p>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
+        <h1 className="mb-1 text-xl font-semibold text-foreground">EA SEO Tracker</h1>
+        <p className="mb-6 text-sm text-muted-foreground">Sign in with your EA account</p>
         {error && (
-          <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="mb-4 rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
         )}
         <form action={signIn} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-foreground">
               Email
             </label>
             <input
@@ -24,11 +24,11 @@ export default async function LoginPage({
               name="email"
               type="email"
               required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-foreground">
               Password
             </label>
             <input
@@ -36,12 +36,12 @@ export default async function LoginPage({
               name="password"
               type="password"
               required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <button
             type="submit"
-            className="w-full rounded-md bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="w-full rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Sign in
           </button>

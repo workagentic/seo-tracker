@@ -2,9 +2,9 @@ import type { TrackedKeyword } from '@/types'
 
 export function KeywordTable({ keywords }: { keywords: TrackedKeyword[] }) {
   return (
-    <div className="overflow-x-auto rounded-md border bg-white">
+    <div className="overflow-x-auto rounded-md border border-border bg-card">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+        <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
           <tr>
             <th className="px-4 py-2">Keyword</th>
             <th className="px-4 py-2">Volume</th>
@@ -17,24 +17,24 @@ export function KeywordTable({ keywords }: { keywords: TrackedKeyword[] }) {
             <th className="px-4 py-2">CPC</th>
           </tr>
         </thead>
-        <tbody className="divide-y">
+        <tbody className="divide-y divide-border">
           {keywords.map((k) => {
             const change = k.current_position != null && k.previous_position != null
               ? k.previous_position - k.current_position
               : null
             return (
-              <tr key={k.id}>
-                <td className="px-4 py-2 font-medium text-slate-900">{k.keyword}</td>
-                <td className="px-4 py-2 text-slate-600">{k.monthly_volume ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{k.keyword_difficulty ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{k.current_position ?? '—'}</td>
-                <td className={`px-4 py-2 ${change && change > 0 ? 'text-green-600' : change && change < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+              <tr key={k.id} className="hover:bg-muted/50">
+                <td className="px-4 py-2 font-medium text-foreground">{k.keyword}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{k.monthly_volume ?? '—'}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{k.keyword_difficulty ?? '—'}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{k.current_position ?? '—'}</td>
+                <td className={`px-4 py-2 font-mono ${change && change > 0 ? 'text-green-600' : change && change < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                   {change === null ? '—' : change === 0 ? '—' : change > 0 ? `▲${change}` : `▼${Math.abs(change)}`}
                 </td>
-                <td className="px-4 py-2 text-slate-600">{k.target_url ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{k.category ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{k.priority ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{k.cpc ? `$${k.cpc}` : '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{k.target_url ?? '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{k.category ?? '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{k.priority ?? '—'}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{k.cpc != null ? `$${k.cpc}` : '—'}</td>
               </tr>
             )
           })}

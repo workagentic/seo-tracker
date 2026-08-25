@@ -8,20 +8,20 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-slate-900">Users</h1>
+      <h1 className="text-xl font-semibold text-foreground">Users</h1>
       <CreateUserForm />
-      <div className="overflow-hidden rounded-md border bg-white">
+      <div className="overflow-hidden rounded-md border border-border bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+          <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
             <tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Role</th><th className="px-4 py-2">Job title</th><th className="px-4 py-2">Active</th></tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-border">
             {((data as Profile[]) ?? []).map((p) => (
-              <tr key={p.id}>
-                <td className="px-4 py-2 text-slate-900">{p.full_name}</td>
-                <td className="px-4 py-2 text-slate-600">{p.role}</td>
-                <td className="px-4 py-2 text-slate-600">{p.job_title ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{p.is_active ? 'Yes' : 'No'}</td>
+              <tr key={p.id} className="hover:bg-muted/50">
+                <td className="px-4 py-2 text-foreground">{p.full_name}</td>
+                <td className="px-4 py-2 text-muted-foreground">{p.role}</td>
+                <td className="px-4 py-2 text-muted-foreground">{p.job_title ?? '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{p.is_active ? 'Yes' : 'No'}</td>
               </tr>
             ))}
           </tbody>

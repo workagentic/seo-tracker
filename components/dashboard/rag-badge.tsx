@@ -5,7 +5,7 @@ const STYLES: Record<RAGStatus, string> = {
   green: 'bg-green-100 text-green-800 hover:bg-green-100',
   amber: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
   red: 'bg-red-100 text-red-800 hover:bg-red-100',
-  'no-data': 'bg-slate-100 text-slate-600 hover:bg-slate-100',
+  'no-data': 'bg-muted text-muted-foreground hover:bg-muted',
 }
 
 const LABELS: Record<RAGStatus, string> = {

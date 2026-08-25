@@ -28,7 +28,7 @@ export default async function AuditPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Audit Reports</h1>
+        <h1 className="text-xl font-semibold text-foreground">Audit Reports</h1>
         {profile && ['admin', 'head'].includes(profile.role) && <NewFindingDialog />}
       </div>
       <AuditFilters />

@@ -20,9 +20,9 @@ const ROWS: { key: MetricKey; label: string }[] = [
 
 export function ScorecardTable({ snapshot, target }: { snapshot: MetricSnapshot | null; target: QuarterTarget }) {
   return (
-    <div className="overflow-hidden rounded-md border bg-white">
+    <div className="overflow-hidden rounded-md border border-border bg-card">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+        <thead className="bg-muted text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="px-4 py-2">Critical Statistic</th>
             <th className="px-4 py-2">Target</th>
@@ -32,7 +32,7 @@ export function ScorecardTable({ snapshot, target }: { snapshot: MetricSnapshot 
             <th className="px-4 py-2">Accountable Owner</th>
           </tr>
         </thead>
-        <tbody className="divide-y">
+        <tbody className="divide-y divide-border">
           {ROWS.map((row) => {
             const actual = snapshot?.[row.key] ?? null
             const targetValue = target[row.key]
@@ -42,15 +42,15 @@ export function ScorecardTable({ snapshot, target }: { snapshot: MetricSnapshot 
             const owners = ACCOUNTABILITY_MAP[row.key] ?? []
 
             return (
-              <tr key={row.key}>
-                <td className="px-4 py-2 text-slate-900">{row.label}</td>
-                <td className="px-4 py-2 text-slate-600">{targetValue.toLocaleString()}</td>
-                <td className="px-4 py-2 text-slate-600">{actual !== null ? actual.toLocaleString() : '—'}</td>
-                <td className="px-4 py-2 text-slate-600">
+              <tr key={row.key} className="hover:bg-muted/50">
+                <td className="px-4 py-2 text-foreground">{row.label}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{targetValue.toLocaleString()}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">{actual !== null ? actual.toLocaleString() : '—'}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">
                   {variance !== null ? `${variance >= 0 ? '+' : ''}${variance.toLocaleString()} (${variancePct!.toFixed(1)}%)` : '—'}
                 </td>
                 <td className="px-4 py-2"><RagBadge status={status} /></td>
-                <td className="px-4 py-2 text-slate-600">{owners.join(', ') || '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{owners.join(', ') || '—'}</td>
               </tr>
             )
           })}

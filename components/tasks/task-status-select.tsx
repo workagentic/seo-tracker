@@ -24,7 +24,7 @@ export function TaskStatusSelect({ taskId, status, disabled }: { taskId: string;
         })
         router.refresh()
       }}
-      className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+      className="rounded border border-input bg-card px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
     >
       {STATUSES.map((s) => (
         <option key={s} value={s}>{s.replace('_', ' ')}</option>

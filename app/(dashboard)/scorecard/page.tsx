@@ -20,7 +20,7 @@ export default async function ScorecardPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Quarterly Scorecard</h1>
+        <h1 className="text-xl font-semibold text-foreground">Quarterly Scorecard</h1>
         <QuarterSelector current={selected} />
       </div>
       <ScorecardTable snapshot={snapshot} target={target} />

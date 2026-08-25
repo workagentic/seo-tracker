@@ -12,7 +12,7 @@ export default async function KeywordsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Keyword Rank Tracker</h1>
+        <h1 className="text-xl font-semibold text-foreground">Keyword Rank Tracker</h1>
         {profile && ['admin', 'head'].includes(profile.role) && <CsvImportDialog />}
       </div>
       <KeywordTable keywords={(data as TrackedKeyword[]) ?? []} />

@@ -12,7 +12,7 @@ export default async function CompetitorsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Competitor Tracker</h1>
+        <h1 className="text-xl font-semibold text-foreground">Competitor Tracker</h1>
         {profile?.role === 'admin' && <AddCompetitorDialog />}
       </div>
       <CompetitorTable competitors={(data as Competitor[]) ?? []} isAdmin={profile?.role === 'admin'} />

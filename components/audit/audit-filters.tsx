@@ -15,15 +15,15 @@ export function AuditFilters() {
 
   return (
     <div className="mb-4 flex gap-2">
-      <select className="rounded border px-2 py-1 text-sm" defaultValue={params.get('category') ?? ''} onChange={(e) => setParam('category', e.target.value)}>
+      <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('category') ?? ''} onChange={(e) => setParam('category', e.target.value)}>
         <option value="">All categories</option>
         {['technical', 'backlink', 'content', 'on-page', 'architecture'].map((c) => <option key={c} value={c}>{c}</option>)}
       </select>
-      <select className="rounded border px-2 py-1 text-sm" defaultValue={params.get('severity') ?? ''} onChange={(e) => setParam('severity', e.target.value)}>
+      <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('severity') ?? ''} onChange={(e) => setParam('severity', e.target.value)}>
         <option value="">All severities</option>
         {['critical', 'high', 'medium', 'low'].map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
-      <select className="rounded border px-2 py-1 text-sm" defaultValue={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)}>
+      <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)}>
         <option value="">All statuses</option>
         {['open', 'in_progress', 'resolved', 'wont_fix'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
       </select>

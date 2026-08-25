@@ -38,7 +38,7 @@ export function CsvImportDialog() {
       <DialogTrigger render={<Button variant="outline">Import CSV</Button>} />
       <DialogContent>
         <DialogHeader><DialogTitle>Import keywords from CSV</DialogTitle></DialogHeader>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Columns: keyword, volume, kd, cpc, category, priority, target_url
         </p>
         <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />

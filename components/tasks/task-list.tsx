@@ -5,9 +5,9 @@ export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProf
   const today = new Date().toISOString().slice(0, 10)
 
   return (
-    <div className="overflow-hidden rounded-md border bg-white">
+    <div className="overflow-hidden rounded-md border border-border bg-card">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+        <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
           <tr>
             <th className="px-4 py-2">Action</th>
             <th className="px-4 py-2">Title</th>
@@ -17,7 +17,7 @@ export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProf
             <th className="px-4 py-2">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y">
+        <tbody className="divide-y divide-border">
           {tasks.map((task) => {
             const isOverdue = !!task.due_date && task.due_date < today && task.status !== 'completed'
             const canEdit =
@@ -27,12 +27,12 @@ export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProf
                 (task.assigned_to === currentProfile.id || task.co_assigned_to === currentProfile.id))
 
             return (
-              <tr key={task.id}>
-                <td className="px-4 py-2 font-medium text-slate-700">{task.action_number}</td>
-                <td className="px-4 py-2 text-slate-900">{task.title}</td>
-                <td className="px-4 py-2 text-slate-600">{task.assigned_profile?.full_name ?? '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{task.co_assigned_profile?.full_name ?? '—'}</td>
-                <td className={`px-4 py-2 ${isOverdue ? 'font-medium text-red-600' : 'text-slate-600'}`}>
+              <tr key={task.id} className="hover:bg-muted/50">
+                <td className="px-4 py-2 font-mono font-medium text-foreground">{task.action_number}</td>
+                <td className="px-4 py-2 text-foreground">{task.title}</td>
+                <td className="px-4 py-2 text-muted-foreground">{task.assigned_profile?.full_name ?? '—'}</td>
+                <td className="px-4 py-2 text-muted-foreground">{task.co_assigned_profile?.full_name ?? '—'}</td>
+                <td className={`px-4 py-2 font-mono ${isOverdue ? 'font-medium text-red-600' : 'text-muted-foreground'}`}>
                   {task.due_date ?? 'Recurring'}
                 </td>
                 <td className="px-4 py-2">

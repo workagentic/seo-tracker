@@ -3,12 +3,12 @@ import Link from 'next/link'
 export default function AdminHubPage() {
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-slate-900">Admin</h1>
+      <h1 className="mb-4 text-xl font-semibold text-foreground">Admin</h1>
       <div className="flex gap-4">
-        <Link href="/admin/users" className="rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <Link href="/admin/users" className="rounded-md border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted">
           Users
         </Link>
-        <Link href="/admin/metrics" className="rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <Link href="/admin/metrics" className="rounded-md border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted">
           Manual metric entry
         </Link>
       </div>

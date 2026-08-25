@@ -16,7 +16,7 @@ export function QuarterSelector({ current }: { current: string }) {
         next.set('quarter', e.target.value)
         router.push(`/scorecard?${next.toString()}`)
       }}
-      className="rounded border px-3 py-1.5 text-sm"
+      className="rounded border border-input bg-card px-3 py-1.5 text-sm text-foreground"
     >
       {QUARTERS.map((q) => <option key={q} value={q}>{q === 'baseline' ? 'Baseline' : q}</option>)}
     </select>

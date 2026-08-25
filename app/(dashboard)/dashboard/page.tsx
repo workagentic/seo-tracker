@@ -20,12 +20,12 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">
+          <h1 className="text-xl font-semibold text-foreground">
             {targets.label} — Target date: {new Date(targets.date).toLocaleDateString('en-GB', {
               day: '2-digit', month: 'short', year: 'numeric',
             })}
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Last sync: {snapshot ? new Date(snapshot.created_at).toLocaleString() : 'never'}
           </p>
         </div>

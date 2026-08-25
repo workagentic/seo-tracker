@@ -40,15 +40,15 @@ export function CreateUserForm() {
   }
 
   return (
-    <div className="max-w-md space-y-3 rounded-md border bg-white p-4">
-      <h2 className="font-medium text-slate-900">Create user</h2>
+    <div className="max-w-md space-y-3 rounded-md border border-border bg-card p-4">
+      <h2 className="font-medium text-foreground">Create user</h2>
       <Input placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
       <Input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Input placeholder="Job title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-      <select className="w-full rounded border px-3 py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+      <select className="w-full rounded border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={role} onChange={(e) => setRole(e.target.value as Role)}>
         {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
       </select>
-      {message && <p className="text-sm text-slate-600">{message}</p>}
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
       <Button disabled={submitting || !fullName || !email} onClick={handleSubmit}>
         {submitting ? 'Creating…' : 'Create user'}
       </Button>

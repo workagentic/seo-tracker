@@ -8,9 +8,9 @@ export function CompetitorTable({ competitors, isAdmin }: { competitors: Competi
   const router = useRouter()
 
   return (
-    <div className="overflow-x-auto rounded-md border bg-white">
+    <div className="overflow-x-auto rounded-md border border-border bg-card">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+        <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
           <tr>
             <th className="px-4 py-2">Company</th>
             <th className="px-4 py-2">Domain</th>
@@ -24,18 +24,18 @@ export function CompetitorTable({ competitors, isAdmin }: { competitors: Competi
             {isAdmin && <th className="px-4 py-2" />}
           </tr>
         </thead>
-        <tbody className="divide-y">
+        <tbody className="divide-y divide-border">
           {competitors.map((c) => (
-            <tr key={c.id}>
-              <td className="px-4 py-2 font-medium text-slate-900">{c.company_name}</td>
-              <td className="px-4 py-2 text-slate-600">{c.domain}</td>
-              <td className="px-4 py-2 text-slate-600">{c.domain_rating ?? '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.organic_traffic ?? '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.organic_keywords ?? '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.keywords_top_3 ?? '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.est_traffic_value ? `$${c.est_traffic_value.toLocaleString()}` : '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.referring_domains ?? '—'}</td>
-              <td className="px-4 py-2 text-slate-600">{c.last_synced_at ? new Date(c.last_synced_at).toLocaleDateString() : 'never'}</td>
+            <tr key={c.id} className="hover:bg-muted/50">
+              <td className="px-4 py-2 font-medium text-foreground">{c.company_name}</td>
+              <td className="px-4 py-2 text-muted-foreground">{c.domain}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.domain_rating ?? '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.organic_traffic ?? '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.organic_keywords ?? '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.keywords_top_3 ?? '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.est_traffic_value ? `$${c.est_traffic_value.toLocaleString()}` : '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.referring_domains ?? '—'}</td>
+              <td className="px-4 py-2 font-mono text-muted-foreground">{c.last_synced_at ? new Date(c.last_synced_at).toLocaleDateString() : 'never'}</td>
               {isAdmin && (
                 <td className="px-4 py-2">
                   <Button

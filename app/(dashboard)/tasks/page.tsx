@@ -33,7 +33,7 @@ export default async function TasksPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-slate-900">Task Tracker</h1>
+      <h1 className="mb-4 text-xl font-semibold text-foreground">Task Tracker</h1>
       <Q1Banner />
       <TaskFilters owners={owners ?? []} />
       <TaskList tasks={(tasks as Task[]) ?? []} currentProfile={profile} />

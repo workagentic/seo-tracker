@@ -51,14 +51,14 @@ export function ManualMetricForm() {
   }
 
   return (
-    <div className="max-w-lg space-y-3 rounded-md border bg-white p-4">
-      <h2 className="font-medium text-slate-900">Enter manual quarterly snapshot</h2>
+    <div className="max-w-lg space-y-3 rounded-md border border-border bg-card p-4">
+      <h2 className="font-medium text-foreground">Enter manual quarterly snapshot</h2>
       <Input type="date" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} />
       <Input placeholder="Quarter label (e.g. Q1)" value={quarterLabel} onChange={(e) => setQuarterLabel(e.target.value)} />
       <div className="grid grid-cols-2 gap-3">
         {FIELDS.map((field) => (
           <div key={field.key}>
-            <label className="mb-1 block text-xs text-slate-500">{field.label}</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{field.label}</label>
             <Input
               type="number"
               value={values[field.key] ?? ''}
@@ -67,7 +67,7 @@ export function ManualMetricForm() {
           </div>
         ))}
       </div>
-      {message && <p className="text-sm text-slate-600">{message}</p>}
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
       <Button disabled={submitting || !snapshotDate || !quarterLabel} onClick={handleSubmit}>
         {submitting ? 'Saving…' : 'Save snapshot'}
       </Button>
