@@ -2,6 +2,15 @@
 
 Internal SEO tracking and accountability dashboard for the Expertise Accelerated SEO team.
 
+## Getting Started
+
+1. Prerequisites: Node 20+ and pnpm.
+2. Install dependencies: `pnpm install`
+3. Copy `.env.local.example` to `.env.local` and fill in the required values. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are required for the app to function. The Ahrefs, Google, and Clarity vars are optional/v2 — the app runs fine with them unset, since Ahrefs falls back to fixture data.
+4. Start the dev server: `pnpm dev` and open http://localhost:3000 (this redirects to `/login`).
+5. For a working login, you'll need a real Supabase project with the schema and seed data loaded — see "Database setup" and "Seeding order" below.
+6. Other useful commands: `pnpm build` for a production build, `pnpm test` for the unit test suite.
+
 ## Database setup
 
 1. Create a Supabase project at supabase.com.

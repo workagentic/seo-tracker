@@ -26,8 +26,7 @@ export async function POST() {
   const admin = createAdminSupabaseClient()
   const quarter = getCurrentQuarter(new Date())
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (admin as any)
+  const { data, error } = await admin
     .from('metric_snapshots')
     .insert({
       snapshot_date: new Date().toISOString().slice(0, 10),
@@ -44,7 +43,7 @@ export async function POST() {
       avg_keywords_per_page: metrics.avg_keywords_per_page,
       indexed_content_pages: metrics.indexed_content_pages,
       created_by: profile.id,
-    })
+    } as never)
     .select()
     .single()
 
