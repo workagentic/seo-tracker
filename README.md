@@ -14,7 +14,7 @@ Internal SEO tracking and accountability dashboard for the Expertise Accelerated
 ## Database setup
 
 1. Create a Supabase project at supabase.com.
-2. In the SQL Editor, run `supabase/migrations/0001_initial_schema.sql`, then `supabase/migrations/0002_rls_policies.sql`, then `supabase/seed.sql` (added in a later task).
+2. In the SQL Editor, run every file in `supabase/migrations/` in filename order (0001, 0002, ...), then `supabase/seed.sql`.
 3. Copy the project URL, anon key, and service role key into `.env.local` (see `.env.local.example`).
 
 ## Seeding order
@@ -30,5 +30,6 @@ Internal SEO tracking and accountability dashboard for the Expertise Accelerated
 5. As Abdullah, click "Sync Ahrefs data" on `/dashboard` — confirm a new `metric_snapshots` row appears and stat tiles update, and confirm `referring_domains_quality` is untouched by the sync.
 6. Visit `/audit` — confirm all 17 seeded findings appear and filters work.
 7. As Abdullah, visit `/admin/users` and create a test user; visit `/admin/metrics` and submit a manual snapshot.
-8. Visit `/competitors`, add a competitor as Abdullah, confirm it appears; confirm a non-admin cannot see the "Add competitor" button.
-9. Visit `/keywords`, import a small CSV, confirm rows appear.
+8. Visit `/admin/sync`, click "Sync Ahrefs data", confirm a row appears in the sync log; visit `/admin/settings`, change the target domain, save, confirm the next sync uses it.
+9. Visit `/competitors`, add a competitor as Abdullah, confirm it appears; confirm a non-admin cannot see the "Add competitor" button.
+10. Visit `/keywords`, import a small CSV, confirm rows appear.

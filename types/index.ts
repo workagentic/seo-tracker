@@ -119,6 +119,24 @@ export interface AuditReport {
 
 export type RAGStatus = 'green' | 'amber' | 'red' | 'no-data'
 
+export interface AppSettings {
+  id: true
+  target_domain: string
+  gsc_site_url: string | null
+  ga4_property_id: string | null
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface SyncLog {
+  id: string
+  source: string
+  status: 'success' | 'error'
+  message: string | null
+  triggered_by: string | null
+  created_at: string
+}
+
 export interface QuarterTarget {
   label: string
   date: string

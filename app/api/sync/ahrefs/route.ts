@@ -4,8 +4,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { fetchAhrefsMetrics } from '@/lib/ahrefs/client'
 import { getCurrentQuarter } from '@/lib/constants'
-
-const TARGET_DOMAIN = 'expertiseaccelerated.com'
+import { getAppSettings } from '@/lib/settings'
 
 export async function POST() {
   const profile = await getCurrentProfile()
@@ -13,17 +12,20 @@ export async function POST() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const admin = createAdminSupabaseClient()
+  const settings = await getAppSettings(admin)
+
   let metrics
   try {
-    metrics = await fetchAhrefsMetrics(TARGET_DOMAIN)
+    metrics = await fetchAhrefsMetrics(settings.target_domain)
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Ahrefs sync failed' },
-      { status: 502 }
-    )
+    const message = err instanceof Error ? err.message : 'Ahrefs sync failed'
+    await admin
+      .from('sync_logs')
+      .insert({ source: 'ahrefs', status: 'error', message, triggered_by: profile.id } as never)
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 
-  const admin = createAdminSupabaseClient()
   const quarter = getCurrentQuarter(new Date())
   const snapshotDate = new Date().toISOString().slice(0, 10)
 
@@ -71,8 +73,18 @@ export async function POST() {
         .single()
 
   if (error) {
+    await admin
+      .from('sync_logs')
+      .insert({ source: 'ahrefs', status: 'error', message: error.message, triggered_by: profile.id } as never)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  await admin.from('sync_logs').insert({
+    source: 'ahrefs',
+    status: 'success',
+    message: `Synced ${settings.target_domain} — snapshot ${snapshotDate}`,
+    triggered_by: profile.id,
+  } as never)
 
   return NextResponse.json({ snapshot: data as unknown as MetricSnapshot })
 }

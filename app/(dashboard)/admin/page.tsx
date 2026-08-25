@@ -11,6 +11,12 @@ export default function AdminHubPage() {
         <Link href="/admin/metrics" className="rounded-md border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted">
           Manual metric entry
         </Link>
+        <Link href="/admin/sync" className="rounded-md border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted">
+          Sync
+        </Link>
+        <Link href="/admin/settings" className="rounded-md border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted">
+          Settings
+        </Link>
       </div>
     </div>
   )
