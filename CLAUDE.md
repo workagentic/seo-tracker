@@ -252,6 +252,34 @@ create table weekly_reports (
 );
 ```
 
+### 5.9 `app_settings`
+Singleton row backing `/admin/settings` (added `0004_settings_and_sync_logs.sql`). Quarter
+boundaries are deliberately **not** here — they stay in `lib/constants.ts` per Section 9.3.
+```sql
+create table app_settings (
+  id boolean primary key default true check (id),
+  target_domain text not null default 'expertiseaccelerated.com',
+  gsc_site_url text,
+  ga4_property_id text,
+  updated_by uuid references profiles(id),
+  updated_at timestamptz default now()
+);
+```
+
+### 5.10 `sync_logs`
+One row per sync attempt (Ahrefs main-domain sync or competitor sync), written by the sync
+routes themselves on both success and failure. Backs `/admin/sync`.
+```sql
+create table sync_logs (
+  id uuid primary key default gen_random_uuid(),
+  source text not null default 'ahrefs',   -- 'ahrefs' | 'competitors'
+  status text not null check (status in ('success', 'error')),
+  message text,
+  triggered_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -289,20 +317,23 @@ NEXT_PUBLIC_APP_URL=                 # e.g. https://seo.expertiseaccelerated.com
 **Base URL:** `https://api.ahrefs.com/v3`
 **Auth:** `Authorization: Bearer {AHREFS_API_KEY}`
 
-Key endpoints to use:
+**Implemented as of 26 Aug 2026** (`lib/ahrefs/client.ts`) — the endpoints below are the ones
+actually wired up and verified against Ahrefs's own API reference, replacing an earlier draft
+of this table that named endpoints (`/backlinks`, `/positions`, `/referring-domains`,
+`/metrics-history`) that either don't exist or aren't what's used:
 
-| Data needed | Endpoint |
-|---|---|
-| Domain Rating + referring domains | `GET /site-explorer/metrics?target={domain}&mode=subdomains` |
-| Organic traffic + keywords | `GET /site-explorer/metrics-history` |
-| Competitor comparison | `GET /site-explorer/metrics` for each competitor domain |
-| Backlink profile | `GET /site-explorer/backlinks?target={domain}&mode=subdomains` |
-| Keyword rankings | `GET /site-explorer/positions?target={domain}&mode=subdomains` |
-| Referring domains | `GET /site-explorer/referring-domains?target={domain}` |
+| Data needed | Endpoint | Notes |
+|---|---|---|
+| Org. traffic, keywords, top-3 keywords, traffic value | `GET /site-explorer/metrics` | `target`, `date` (**required** — a bare call without it 400s), `mode=subdomains`; add `country=us` for the US-scoped read |
+| Domain Rating | `GET /site-explorer/domain-rating` | same required params |
+| Referring domains (total) | `GET /site-explorer/backlinks-stats` | reads `metrics.live_refdomains` |
+| Keywords in Top 10 | `GET /site-explorer/organic-keywords` | `select=best_position`, counts rows ≤10 client-side; capped at `limit=1000` results, so this undercounts once `org_keywords` exceeds that (expected from ~Q3 onward per `QUARTERLY_TARGETS`) |
+| Avg. keywords/page, indexed content pages | `GET /site-explorer/top-pages` | `select=keywords`; page count and keyword-count average, same 1000-row cap |
+| Competitor comparison | `GET /site-explorer/metrics` + `/domain-rating` + `/backlinks-stats` | same 3 of the above 5 calls, run once per competitor domain via `POST /api/competitors/sync` |
 
-**Important:** Ahrefs API is metered. Cache all responses in Supabase for 24 hours minimum. Never call the API on every page load. Build a `/api/sync/ahrefs` route that admins can trigger manually or on a schedule, and store results in the `metric_snapshots` and `competitors` tables.
+**Important:** Ahrefs API is metered. Cache all responses in Supabase for 24 hours minimum. Never call the API on every page load. `/api/sync/ahrefs` (main domain) and `/api/competitors/sync` (competitors) are both admin/head-triggered, store results in `metric_snapshots` / `competitors`, and log every attempt to `sync_logs`.
 
-**Rate limiting:** 1 request/second. Queue requests with a small delay when syncing multiple competitors.
+**Rate limiting:** 1 request/second, account-wide (not per domain). All calls above run strictly sequentially with an ~1.1s delay between them — including across competitors in a competitor sync, not just within one domain's calls.
 
 ### 7.2 Google Search Console API v1
 **Scope:** `https://www.googleapis.com/auth/webmasters.readonly`
@@ -479,6 +510,8 @@ Each stat tile shows:
 
 **Add/Edit competitor:** Admin only. Modal form — company name, domain. Ahrefs data auto-populated on next sync.
 
+**Sync:** Implemented — "Sync competitors" button on `/competitors` (admin/head), `POST /api/competitors/sync`. Syncs active competitors one at a time (Ahrefs' rate limit is account-wide) and writes `last_synced_at`.
+
 **Competitor detail page (`/competitors/[domain]`):**
 - Full Ahrefs metrics for that domain
 - Top pages and top keywords (pulled from Ahrefs)
@@ -546,10 +579,10 @@ Each stat tile shows:
 Accessible only to `admin` role (Abdullah Shekha).
 
 **Sub-pages:**
-- `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only).
-- `/admin/sync` — Trigger manual Ahrefs / GSC / GA4 / Clarity syncs. View sync logs and errors.
-- `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API).
-- `/admin/settings` — GSC site URL, GA4 property ID, target domain, quarter start/end dates.
+- `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only). **Implemented.**
+- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs only** — GSC/GA4/Clarity have no integration code yet (v2, Section 12.5–12.6), so there's nothing to trigger for them.
+- `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
+- `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID fields stored for when those integrations are built. **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
 
 ---
 
@@ -847,19 +880,45 @@ pnpm dev
 ## 13. Definition of Done (v1)
 
 The tool is considered v1-complete when:
-- All 9 team members can log in and see the dashboard
-- All 34 tasks are seeded and visible with correct owners and due dates
-- The Q1 scorecard tab shows targets vs. the baseline snapshot
-- Ahrefs data syncs manually via admin trigger and populates all stat tiles
-- The task tracker allows owners to update their own task status
-- The audit findings are seeded and visible
-- The admin panel allows Abdullah to add users and enter manual metric snapshots
-- The competitor table is editable (add/remove domains)
-- The keyword table supports CSV import
+- [x] All 9 team members can log in and see the dashboard
+- [x] All 34 tasks are seeded and visible with correct owners and due dates
+- [x] The Q1 scorecard tab shows targets vs. the baseline snapshot
+- [x] Ahrefs data syncs manually via admin trigger and populates all stat tiles
+- [x] The task tracker allows owners to update their own task status
+- [x] The audit findings are seeded and visible
+- [x] The admin panel allows Abdullah to add users and enter manual metric snapshots
+- [x] The competitor table is editable (add/remove domains)
+- [x] The keyword table supports CSV import
 
 Everything in Section 8 beyond this list is v2 scope (weekly email reports, GA4 integration, Clarity embed, charts/sparklines) and should be built after v1 is stable and in use by the team.
+
+## 14. Implementation Status (as of 26 Aug 2026)
+
+The bullets in Section 13 are the original v1 checklist and are all functionally in place, but
+a few things worth knowing before calling this done:
+
+**Solid:**
+- Dashboard, scorecard, task tracker (with correct owner-scoped RLS), competitors, keywords,
+  audit findings — all working against real data.
+- Ahrefs sync (main domain and, as of this session, competitors) populates every field it can
+  reach via the API; `referring_domains_quality` correctly stays manual-only.
+- `/admin/sync` and `/admin/settings` (Section 8.9) — built this session; were entirely
+  missing before.
+- Same-day sync/manual-entry no longer clobber each other — both `/api/sync/ahrefs` and
+  `/api/admin/metrics` patch the existing snapshot for the day instead of inserting a
+  duplicate, and `getLatestSnapshot`/`getAllSnapshots` (`lib/metrics.ts`) have a deterministic
+  `created_at` tiebreaker so the dashboard and scorecard can't pick a stale row.
+
+**Known gaps (not yet built):**
+- Task detail slide-in panel's activity log (Section 8.3) — task status changes aren't
+  recorded anywhere; there's no audit trail of who changed what, when.
+- Daily overdue auto-update (Section 9.2) — no cron/scheduled function exists; "overdue" is
+  computed live in the UI filter, never persisted to `tasks.status`.
+- Scorecard's "Actions A1–A22 completed on time" toggle and PDF/CSV export (Section 8.4).
+- Weekly report (`/weekly-report`), GA4, Microsoft Clarity — all confirmed v2, no code exists
+  for any of them, as intended.
 
 ---
 
 *This document is the single source of truth for the EA SEO Tracker build. Update it as the project evolves.*
-*Last updated: 25 August 2026 — Abdullah Shekha*
+*Last updated: 26 August 2026 — Abdullah Shekha*
