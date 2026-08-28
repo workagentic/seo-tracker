@@ -72,6 +72,23 @@ export interface Competitor {
   created_at: string
 }
 
+export interface Ga4Snapshot {
+  id: string
+  snapshot_date: string
+  sessions_global: number | null
+  users_global: number | null
+  new_users_global: number | null
+  bounce_rate_global: number | null
+  avg_session_duration_global: number | null
+  sessions_us: number | null
+  users_us: number | null
+  new_users_us: number | null
+  bounce_rate_us: number | null
+  avg_session_duration_us: number | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface CompetitorSnapshot {
   id: string
   competitor_id: string

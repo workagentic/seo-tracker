@@ -327,6 +327,28 @@ create table quarterly_targets (
 );
 ```
 
+### 5.13 `ga4_snapshots`
+Added `0009_ga4_snapshots.sql`. See Section 7.3. One row per day (patch-today's-row
+pattern), Global and US aggregates side by side, trailing-28-day window each pull.
+```sql
+create table ga4_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  snapshot_date date not null,
+  sessions_global integer,
+  users_global integer,
+  new_users_global integer,
+  bounce_rate_global numeric,
+  avg_session_duration_global numeric,
+  sessions_us integer,
+  users_us integer,
+  new_users_us integer,
+  bounce_rate_us numeric,
+  avg_session_duration_us numeric,
+  created_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -405,17 +427,30 @@ Build a GSC service that:
 3. Compares against Ahrefs position data to validate
 
 ### 7.3 Google Analytics 4 (Data API v1)
-**Scope:** `https://www.googleapis.com/auth/analytics.readonly`
+**Implemented 29 Aug 2026.** `lib/ga4/client.ts`'s `fetchGa4Metrics()` reuses the same
+service-account auth as GSC (`lib/google/auth.ts`, scope
+`https://www.googleapis.com/auth/analytics.readonly`) — confirmed working against the live
+API (real data returned: Direct/Organic Search/Referral channel breakdown).
+
 **Base URL:** `https://analyticsdata.googleapis.com/v1beta`
 
 Key endpoint: `POST /properties/{propertyId}:runReport`
 
-Metrics to pull:
-- `sessions`, `totalUsers`, `newUsers`, `bounceRate`, `averageSessionDuration`
-- Dimensions: `date`, `country`, `sessionSource`, `sessionMedium`
-- Filter by `country = United States` for US-specific metrics
+Metrics pulled: `sessions`, `totalUsers`, `newUsers`, `bounceRate`, `averageSessionDuration`,
+over the trailing 28 days, as two separate calls — unfiltered (Global) and filtered
+`country = United States` (US) — mirroring the Global/US split pattern already used for
+Ahrefs metrics. No per-day/per-country dimension breakdown is stored, just the two
+aggregates, since the dashboard only shows current Global/US totals (Section 8.2).
 
-Pull weekly, store aggregated monthly in a `ga4_snapshots` table (add to schema if needed).
+Stored in `ga4_snapshots` (Section 5.13) — one row per day, "patch today's row" pattern like
+`metric_snapshots`/`keyword_history`. `lib/ga4/sync.ts`'s `runGa4Sync()` is called from both
+`POST /api/sync/ga4` (manual button on `/dashboard`, admin/head only) and the weekly cron
+(`/api/cron/weekly-snapshot`, Section 8.9). `app_settings.ga4_property_id` (editable via
+`/admin/settings`) is the property ID source, same DB-driven pattern as `gsc_site_url`/
+`target_domain` — not the `GA4_PROPERTY_ID` env var, which is local-dev reference only.
+
+Displayed in a "Website Analytics (GA4)" card on `/dashboard` (`Ga4Panel`) — Global and US
+side by side, no RAG/target coloring (GA4 metrics aren't part of the 12-KPI target system).
 
 ### 7.4 Microsoft Clarity API
 **Base URL:** `https://www.clarity.ms/export/api/v1`
@@ -670,9 +705,9 @@ Accessible only to `admin` role (Abdullah Shekha).
 
 **Sub-pages:**
 - `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only). **Implemented.**
-- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh sync is also implemented, but triggered from `/keywords` instead (see Section 8.6) — GA4/Clarity still have no integration code yet (v2, Section 12.5–12.6).
+- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh and GA4 sync are also implemented, but both trigger from `/dashboard` (GSC's button is actually on `/keywords` — see Section 8.6) — Clarity still has no integration code yet (v2, Section 12.6).
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
-- `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID fields stored for when those integrations are built. **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
+- `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID (both now actually used — Section 7.2/7.3). **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
 
 Admin sub-pages render as tabs under a shared `app/(dashboard)/admin/layout.tsx` (`/admin`
 redirects to `/admin/users`) rather than as separate unlinked pages.
@@ -681,9 +716,10 @@ redirects to `/admin/users`) rather than as separate unlinked pages.
 (09:00 PKT — matches the `weekly_reports` cadence in Section 8.8) via `vercel.json`'s
 `crons` config. Authenticated by `CRON_SECRET` (a Vercel Cron job has no logged-in user, so
 this doesn't go through `getCurrentProfile()` like every other sync route). Runs the same
-GSC sync (`lib/gsc/sync.ts`) and competitor Ahrefs sync (`lib/ahrefs/competitorSync.ts`)
-logic the manual buttons use, then additionally writes one `competitor_snapshots` row per
-active competitor. Logs to `sync_logs` with `source: 'weekly-cron'` and `triggered_by: null`.
+GSC sync (`lib/gsc/sync.ts`), competitor Ahrefs sync (`lib/ahrefs/competitorSync.ts`), and
+GA4 sync (`lib/ga4/sync.ts`) logic the manual buttons use, then additionally writes one
+`competitor_snapshots` row per active competitor. Logs to `sync_logs` with
+`source: 'weekly-cron'` and `triggered_by: null`.
 
 ---
 
@@ -1086,6 +1122,8 @@ a few things worth knowing before calling this done:
   Tasks/Keywords/Competitors tables.
 - Dashboard charts (Section 8.2) — traffic trend, DR progression, keywords distribution,
   competitor comparison bars, using Recharts and the validated categorical palette.
+- GA4 integration (Section 7.3) — service-account auth reused from GSC, "Website Analytics
+  (GA4)" card on `/dashboard`, manual sync button, and included in the weekly cron.
 
 **Known gaps (not yet built):**
 - Task detail slide-in panel's full activity log (Section 8.3) — `tasks.updated_by` (added
@@ -1093,8 +1131,8 @@ a few things worth knowing before calling this done:
 - Daily overdue auto-update (Section 9.2) — no cron/scheduled function exists; "overdue" is
   computed live in the UI filter, never persisted to `tasks.status`.
 - Scorecard's "Actions A1–A22 completed on time" toggle and PDF/CSV export (Section 8.4).
-- Weekly report (`/weekly-report`), GA4, Microsoft Clarity — all confirmed v2, no code exists
-  for any of them, as intended.
+- Weekly report (`/weekly-report`) and Microsoft Clarity — both confirmed v2, no code exists
+  for either, as intended.
 - A permission bug reported for task status editing (owners editing others' tasks) could not
   be reproduced against the current code or live data as of this session — the PATCH route
   and RLS both correctly scope `owner`-role edits to tasks the user is `assigned_to`/

@@ -18,8 +18,8 @@ export default async function AdminSyncPage() {
         <SyncButton />
       </div>
       <p className="text-sm text-muted-foreground">
-        Ahrefs syncs here; GSC keyword refresh runs from the Keywords page. GA4 and Clarity syncs
-        are still v2 scope (CLAUDE.md Section 12).
+        Ahrefs syncs here; GSC keyword refresh and GA4 sync both run from the Dashboard page.
+        Clarity is still v2 scope (CLAUDE.md Section 12).
       </p>
       <div className="overflow-hidden rounded-md border border-border bg-card">
         <table className="w-full text-sm">
