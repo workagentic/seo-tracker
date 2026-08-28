@@ -34,11 +34,17 @@ export function compareToEA(competitor: Competitor, eaSnapshot: MetricSnapshot |
     }
 
     if (eaValue === 0) {
-      const direction: ComparisonDirection = competitorValue > 0 ? 'up' : 'equal'
+      // EA has nothing on this metric — a competitor with any value at all is ahead of EA,
+      // which reads as "down" for EA (see the eaValue !== 0 case below for the convention).
+      const direction: ComparisonDirection = competitorValue > 0 ? 'down' : 'equal'
       return { key: competitorKey, label, eaValue, competitorValue, deltaPct: null, direction }
     }
 
-    const deltaPct = ((competitorValue - eaValue) / eaValue) * 100
+    // Perspective is EA's, not the competitor's: a competitor ahead of EA (competitorValue >
+    // eaValue) means EA is behind, which is "down"/red for EA — not "up"/green for the
+    // competitor. deltaPct is EA's variance from the competitor, e.g. EA=24 vs competitor=77
+    // is -221% (EA is 221% below this competitor), matching the sign shown in the UI.
+    const deltaPct = ((eaValue - competitorValue) / eaValue) * 100
     const direction: ComparisonDirection = deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'equal'
     return { key: competitorKey, label, eaValue, competitorValue, deltaPct, direction }
   })

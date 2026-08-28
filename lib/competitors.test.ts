@@ -45,23 +45,25 @@ function makeSnapshot(overrides: Partial<MetricSnapshot>): MetricSnapshot {
 }
 
 describe('compareToEA', () => {
-  it('marks a competitor ahead of EA as "up" with a positive delta', () => {
+  it('marks EA as "down" (behind) when a competitor is ahead, with a negative delta', () => {
+    // EA=25, competitor=40 (ahead of EA) — EA is 60% below this competitor on DR.
     const competitor = makeCompetitor({ domain_rating: 40 })
     const snapshot = makeSnapshot({ domain_rating: 25 })
 
     const [dr] = compareToEA(competitor, snapshot)
 
-    expect(dr).toEqual({ key: 'domain_rating', label: 'DR', eaValue: 25, competitorValue: 40, deltaPct: 60, direction: 'up' })
+    expect(dr).toEqual({ key: 'domain_rating', label: 'DR', eaValue: 25, competitorValue: 40, deltaPct: -60, direction: 'down' })
   })
 
-  it('marks a competitor behind EA as "down" with a negative delta', () => {
+  it('marks EA as "up" (ahead) when a competitor is behind, with a positive delta', () => {
+    // EA=25, competitor=10 (behind EA) — EA is 60% above this competitor on DR.
     const competitor = makeCompetitor({ domain_rating: 10 })
     const snapshot = makeSnapshot({ domain_rating: 25 })
 
     const [dr] = compareToEA(competitor, snapshot)
 
-    expect(dr.direction).toBe('down')
-    expect(dr.deltaPct).toBe(-60)
+    expect(dr.direction).toBe('up')
+    expect(dr.deltaPct).toBe(60)
   })
 
   it('marks equal values as "equal" with a zero delta', () => {
@@ -91,13 +93,13 @@ describe('compareToEA', () => {
     expect(dr.direction).toBe('no-data')
   })
 
-  it('avoids dividing by zero when EA value is 0', () => {
+  it('avoids dividing by zero when EA value is 0, marking EA as behind', () => {
     const competitor = makeCompetitor({ referring_domains: 5 })
     const snapshot = makeSnapshot({ referring_domains_total: 0 })
 
     const comparison = compareToEA(competitor, snapshot).find((c) => c.key === 'referring_domains')
 
-    expect(comparison).toEqual({ key: 'referring_domains', label: 'Ref. Domains', eaValue: 0, competitorValue: 5, deltaPct: null, direction: 'up' })
+    expect(comparison).toEqual({ key: 'referring_domains', label: 'Ref. Domains', eaValue: 0, competitorValue: 5, deltaPct: null, direction: 'down' })
   })
 
   it('covers all six comparison metrics', () => {
