@@ -72,6 +72,19 @@ export interface Competitor {
   created_at: string
 }
 
+export interface CompetitorSnapshot {
+  id: string
+  competitor_id: string
+  snapshot_date: string
+  domain_rating: number | null
+  organic_traffic: number | null
+  organic_keywords: number | null
+  keywords_top_3: number | null
+  est_traffic_value: number | null
+  referring_domains: number | null
+  created_at: string
+}
+
 export type KeywordCategory = 'striking-distance' | 'commercial' | 'glossary' | 'niche'
 export type KeywordPriority = 'high' | 'medium' | 'low'
 

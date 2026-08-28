@@ -140,7 +140,9 @@ create table tasks (
   notes text,
   completed_at timestamptz,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  updated_by uuid references profiles(id)  -- added 0005_task_updated_by.sql, backs the
+                                            -- notification bell's "changed by someone else"
 );
 ```
 
@@ -267,15 +269,35 @@ create table app_settings (
 ```
 
 ### 5.10 `sync_logs`
-One row per sync attempt (Ahrefs main-domain sync or competitor sync), written by the sync
-routes themselves on both success and failure. Backs `/admin/sync`.
+One row per sync attempt (Ahrefs main-domain sync, competitor sync, GSC sync, or the weekly
+cron), written by the sync routes themselves on both success and failure. Backs `/admin/sync`.
 ```sql
 create table sync_logs (
   id uuid primary key default gen_random_uuid(),
-  source text not null default 'ahrefs',   -- 'ahrefs' | 'competitors'
+  source text not null default 'ahrefs',   -- 'ahrefs' | 'competitors' | 'gsc' | 'weekly-cron'
   status text not null check (status in ('success', 'error')),
   message text,
-  triggered_by uuid references profiles(id),
+  triggered_by uuid references profiles(id),  -- null for cron-triggered runs
+  created_at timestamptz default now()
+);
+```
+
+### 5.11 `competitor_snapshots`
+Added `0006_competitor_snapshots.sql`. Weekly point-in-time history for competitors —
+mirrors `keyword_history`'s role, since `competitors` itself only holds current-state values
+with no trend over time. Written by the weekly cron (Section 8.9/8.5) and readable by
+everyone, same as `competitors`.
+```sql
+create table competitor_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  competitor_id uuid references competitors(id) on delete cascade,
+  snapshot_date date not null,
+  domain_rating integer,
+  organic_traffic integer,
+  organic_keywords integer,
+  keywords_top_3 integer,
+  est_traffic_value numeric,
+  referring_domains integer,
   created_at timestamptz default now()
 );
 ```
@@ -302,6 +324,9 @@ GSC_SITE_URL=                        # e.g. https://expertiseaccelerated.com/ �
 # Microsoft Clarity
 CLARITY_PROJECT_ID=
 CLARITY_API_TOKEN=                   # From Clarity dashboard → Settings → API
+
+# Cron (Vercel Cron Jobs auth for /api/cron/weekly-snapshot — see Section 8.5/8.9)
+CRON_SECRET=                         # Random string; Vercel sends it as `Authorization: Bearer <value>`
 
 # App
 NEXTAUTH_SECRET=                     # Random 32-char string
@@ -510,12 +535,16 @@ Each stat tile shows:
 **Table view:** One row per competitor, columns: Rank, Company, Domain, DR, Traffic/mo, Keywords, #1–3 Keywords, Est. Value, Ref. Domains, Last Synced.
 
 - Sortable by any column
-- EA's row always pinned and highlighted
-- Show delta from last sync (▲▼ indicators)
+- EA's row always pinned and highlighted. **Implemented** (`lib/competitors.ts`'s `compareToEA`)
+  — EA's latest `metric_snapshots` row renders as a highlighted first row, and each
+  competitor's cell shows a ▲/▼ + % delta versus EA (green ahead, red behind), not just a
+  delta from the competitor's own last sync.
+- Weekly history is captured automatically into `competitor_snapshots` (Section 5.11) by the
+  weekly cron (Section 8.9) — no trend chart built on top of it yet.
 
 **Add/Edit competitor:** Admin only. Modal form — company name, domain. Ahrefs data auto-populated on next sync.
 
-**Sync:** Implemented — "Sync competitors" button on `/competitors` (admin/head), `POST /api/competitors/sync`. Syncs active competitors one at a time (Ahrefs' rate limit is account-wide) and writes `last_synced_at`.
+**Sync:** Implemented — "Sync competitors" button on `/competitors` (admin/head), `POST /api/competitors/sync`. Syncs active competitors one at a time (Ahrefs' rate limit is account-wide) and writes `last_synced_at`. Logic lives in `lib/ahrefs/competitorSync.ts` so the weekly cron (Section 8.9) can reuse it.
 
 **Competitor detail page (`/competitors/[domain]`):**
 - Full Ahrefs metrics for that domain
@@ -588,6 +617,17 @@ Accessible only to `admin` role (Abdullah Shekha).
 - `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh sync is also implemented, but triggered from `/keywords` instead (see Section 8.6) — GA4/Clarity still have no integration code yet (v2, Section 12.5–12.6).
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
 - `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID fields stored for when those integrations are built. **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
+
+Admin sub-pages render as tabs under a shared `app/(dashboard)/admin/layout.tsx` (`/admin`
+redirects to `/admin/users`) rather than as separate unlinked pages.
+
+**Weekly automation:** `GET /api/cron/weekly-snapshot`, scheduled every Monday 04:00 UTC
+(09:00 PKT — matches the `weekly_reports` cadence in Section 8.8) via `vercel.json`'s
+`crons` config. Authenticated by `CRON_SECRET` (a Vercel Cron job has no logged-in user, so
+this doesn't go through `getCurrentProfile()` like every other sync route). Runs the same
+GSC sync (`lib/gsc/sync.ts`) and competitor Ahrefs sync (`lib/ahrefs/competitorSync.ts`)
+logic the manual buttons use, then additionally writes one `competitor_snapshots` row per
+active competitor. Logs to `sync_logs` with `source: 'weekly-cron'` and `triggered_by: null`.
 
 ---
 
@@ -897,7 +937,7 @@ The tool is considered v1-complete when:
 
 Everything in Section 8 beyond this list is v2 scope (weekly email reports, GA4 integration, Clarity embed, charts/sparklines) and should be built after v1 is stable and in use by the team.
 
-## 14. Implementation Status (as of 26 Aug 2026)
+## 14. Implementation Status (as of 28 Aug 2026)
 
 The bullets in Section 13 are the original v1 checklist and are all functionally in place, but
 a few things worth knowing before calling this done:
@@ -905,25 +945,37 @@ a few things worth knowing before calling this done:
 **Solid:**
 - Dashboard, scorecard, task tracker (with correct owner-scoped RLS), competitors, keywords,
   audit findings — all working against real data.
-- Ahrefs sync (main domain and, as of this session, competitors) populates every field it can
-  reach via the API; `referring_domains_quality` correctly stays manual-only.
-- `/admin/sync` and `/admin/settings` (Section 8.9) — built this session; were entirely
-  missing before.
-- Same-day sync/manual-entry no longer clobber each other — both `/api/sync/ahrefs` and
-  `/api/admin/metrics` patch the existing snapshot for the day instead of inserting a
-  duplicate, and `getLatestSnapshot`/`getAllSnapshots` (`lib/metrics.ts`) have a deterministic
-  `created_at` tiebreaker so the dashboard and scorecard can't pick a stale row.
+- Ahrefs sync (main domain and competitors) populates every field it can reach via the API;
+  `referring_domains_quality` correctly stays manual-only.
+- `/admin/sync` and `/admin/settings` (Section 8.9), now rendered as tabs under a shared
+  admin layout rather than separate unlinked pages.
+- Same-day sync/manual-entry no longer clobber each other — `/api/sync/ahrefs`,
+  `/api/sync/gsc`, and `/api/admin/metrics` all patch the existing row for the day instead of
+  inserting a duplicate, and `getLatestSnapshot`/`getAllSnapshots` (`lib/metrics.ts`) have a
+  deterministic `created_at` tiebreaker so the dashboard and scorecard can't pick a stale row.
+- GSC integration (Section 7.2) — service-account auth (`lib/google/auth.ts`), keyword
+  refresh from `/keywords`, and the weekly cron all working.
+- Competitor comparison (Section 8.5) — EA pinned row + per-metric delta vs. EA
+  (`lib/competitors.ts`).
+- Notification bell (Topbar) — live-computed overdue/deadline-soon/status-changed
+  notifications (`lib/notifications.ts`); no persisted notifications table.
+- Weekly `competitor_snapshots` history + automated Monday cron for both GSC keywords and
+  competitors (Section 8.9's "Weekly automation").
 
 **Known gaps (not yet built):**
-- Task detail slide-in panel's activity log (Section 8.3) — task status changes aren't
-  recorded anywhere; there's no audit trail of who changed what, when.
+- Task detail slide-in panel's full activity log (Section 8.3) — `tasks.updated_by` (added
+  this session) records only the *last* change, not a full history of every status change.
 - Daily overdue auto-update (Section 9.2) — no cron/scheduled function exists; "overdue" is
   computed live in the UI filter, never persisted to `tasks.status`.
 - Scorecard's "Actions A1–A22 completed on time" toggle and PDF/CSV export (Section 8.4).
 - Weekly report (`/weekly-report`), GA4, Microsoft Clarity — all confirmed v2, no code exists
   for any of them, as intended.
+- A permission bug reported for task status editing (owners editing others' tasks) could not
+  be reproduced against the current code or live data as of this session — the PATCH route
+  and RLS both correctly scope `owner`-role edits to tasks the user is `assigned_to`/
+  `co_assigned_to` on. Revisit with specific repro steps if it recurs.
 
 ---
 
 *This document is the single source of truth for the EA SEO Tracker build. Update it as the project evolves.*
-*Last updated: 26 August 2026 — Abdullah Shekha*
+*Last updated: 28 August 2026 — Abdullah Shekha*
