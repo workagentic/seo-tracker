@@ -473,11 +473,23 @@ Each stat tile shows:
 - RAG badge (Green / Amber / Red — see RAG logic in Section 9)
 - Small sparkline showing trend across all snapshots
 
-**Charts section:**
-1. Traffic trend (line chart) — Global and US organic traffic over all snapshots, with target lines
-2. Domain Rating progression (line chart) — actual vs. target per quarter
-3. Keywords distribution (bar chart) — #1–3, #4–10, #11–20 grouped
-4. Competitor comparison (horizontal bar chart) — EA vs. all active competitors on DR, traffic, keywords
+**Charts section (implemented 29 Aug 2026, `components/dashboard/charts/`, Recharts):**
+1. Traffic trend (line chart) — Global and US organic traffic over all snapshots, with
+   dashed current-quarter target reference lines. `TrafficTrendChart`.
+2. Domain Rating progression (line chart) — actual over all snapshots vs. a dashed
+   current-quarter target reference line. `DomainRatingChart`.
+3. Keywords distribution (bar chart) — **Top 3 and Positions 4–10 only**, from the latest
+   snapshot. `KeywordsDistributionChart`. Positions 11–20 are **not tracked** — neither the
+   Ahrefs sync (`lib/ahrefs/client.ts`) nor the schema captures that band, so it was left out
+   rather than fabricated; adding it would need a new Ahrefs call and a schema column.
+4. Competitor comparison (horizontal bar chart) — EA vs. all active competitors, one chart
+   each for DR / Organic Traffic / Organic Keywords (never combined into one dual-axis
+   chart — the scales differ too much). `CompetitorMetricBarChart`, EA highlighted in blue,
+   competitors in muted gray.
+
+Colors use the validated categorical palette's first two slots (blue `#2a78d6` / orange
+`#eb6834`) — validated via the dataviz skill's `validate_palette.js`, all checks pass. Light
+mode only; **this app has no dark mode**, so no dark palette variant was built.
 
 **Header:** Show active quarter label (e.g. "Q1 — Target date: 30 Sep 2026"), countdown to next quarter-end, and last sync timestamp.
 
@@ -1070,6 +1082,10 @@ a few things worth knowing before calling this done:
   `quarterly_targets` table, editable via `/scorecard/edit` (Section 8.4/10.3).
 - Live tasks/competitors/keywords data replaced from the SEO team's updated planning
   documents (Section 10.2/12 notes 1-2) — 58 tasks, 8 competitors, 96 keywords as of import.
+- Task add/edit/delete (admin only, Section 8.3) and search + sortable columns on
+  Tasks/Keywords/Competitors tables.
+- Dashboard charts (Section 8.2) — traffic trend, DR progression, keywords distribution,
+  competitor comparison bars, using Recharts and the validated categorical palette.
 
 **Known gaps (not yet built):**
 - Task detail slide-in panel's full activity log (Section 8.3) — `tasks.updated_by` (added
