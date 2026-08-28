@@ -9,6 +9,7 @@ const NAV_ITEMS: { href: string; label: string; roles?: Profile['role'][] }[] = 
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/tasks', label: 'Tasks' },
   { href: '/scorecard', label: 'Scorecard' },
+  { href: '/weekly-report', label: 'Weekly Report' },
   { href: '/competitors', label: 'Competitors' },
   { href: '/keywords', label: 'Keywords' },
   { href: '/audit', label: 'Audit Reports' },

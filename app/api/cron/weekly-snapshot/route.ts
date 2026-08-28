@@ -4,6 +4,9 @@ import { runGscSync } from '@/lib/gsc/sync'
 import { runCompetitorSync } from '@/lib/ahrefs/competitorSync'
 import { runGa4Sync } from '@/lib/ga4/sync'
 import { runClaritySync } from '@/lib/clarity/sync'
+import { generateAndSaveWeeklyReport } from '@/lib/weekly-report'
+import { getQuarterlyTargets } from '@/lib/targets'
+import { getCurrentQuarter } from '@/lib/constants'
 import type { Competitor } from '@/types'
 
 // Vercel Cron has no logged-in user, so this route authenticates via a shared secret
@@ -40,9 +43,14 @@ export async function GET(request: Request) {
     if (!error) snapshotted++
   }
 
+  const quarter = getCurrentQuarter(new Date())
+  const allTargets = await getQuarterlyTargets(admin)
+  const target = allTargets[quarter] ?? allTargets.Q1
+  await generateAndSaveWeeklyReport(admin, target, null)
+
   const summary = `Weekly snapshot: GSC ${JSON.stringify(gsc.body)}; competitors ${JSON.stringify(
     competitors.body
-  )}; snapshotted ${snapshotted} competitor(s); GA4 ${JSON.stringify(ga4.body)}; Clarity ${JSON.stringify(clarity.body)}`
+  )}; snapshotted ${snapshotted} competitor(s); GA4 ${JSON.stringify(ga4.body)}; Clarity ${JSON.stringify(clarity.body)}; weekly report generated`
 
   await admin.from('sync_logs').insert({
     source: 'weekly-cron',

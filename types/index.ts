@@ -72,6 +72,54 @@ export interface Competitor {
   created_at: string
 }
 
+export interface WeeklyReportKpi {
+  key: MetricKey
+  label: string
+  actual: number | null
+  target: number
+  ragStatus: RAGStatus
+}
+
+export interface WeeklyReportTask {
+  id: string
+  action_number: string
+  title: string
+  due_date: string | null
+  owner: string | null
+}
+
+export interface WeeklyReportMetricMove {
+  key: MetricKey
+  label: string
+  previous: number | null
+  current: number | null
+  deltaPct: number | null
+}
+
+export interface WeeklyReportKeywordMover {
+  keyword: string
+  previous_position: number | null
+  current_position: number | null
+  change: number
+}
+
+export interface WeeklyReportSummary {
+  kpis: WeeklyReportKpi[]
+  tasksDueSoon: WeeklyReportTask[]
+  tasksOverdue: WeeklyReportTask[]
+  metricsMoved: WeeklyReportMetricMove[]
+  keywordMovers: WeeklyReportKeywordMover[]
+}
+
+export interface WeeklyReport {
+  id: string
+  week_start: string
+  week_end: string
+  generated_at: string
+  summary: WeeklyReportSummary | null
+  recipient_ids: string[] | null
+}
+
 export interface Ga4Snapshot {
   id: string
   snapshot_date: string
