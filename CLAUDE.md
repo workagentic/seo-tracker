@@ -293,12 +293,11 @@ SUPABASE_SERVICE_ROLE_KEY=           # server-side only, never expose to client
 # Ahrefs
 AHREFS_API_KEY=                      # From Ahrefs account → API → Tokens
 
-# Google (for both GSC and GA4)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=                # Service account refresh token with GSC + GA4 scopes
+# Google (service account — used for both GSC and GA4, see Section 7.2/7.3)
+GOOGLE_SERVICE_ACCOUNT_EMAIL=        # e.g. ea-seo-tracker-reader@<project-id>.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=  # PEM key, single-line with literal \n
 GA4_PROPERTY_ID=                     # e.g. 123456789
-GSC_SITE_URL=                        # e.g. https://expertiseaccelerated.com/
+GSC_SITE_URL=                        # e.g. https://expertiseaccelerated.com/ — local-dev reference only; the app reads app_settings.gsc_site_url
 
 # Microsoft Clarity
 CLARITY_PROJECT_ID=
@@ -337,6 +336,12 @@ of this table that named endpoints (`/backlinks`, `/positions`, `/referring-doma
 
 ### 7.2 Google Search Console API v1
 **Scope:** `https://www.googleapis.com/auth/webmasters.readonly`
+**Auth (updated 28 Aug 2026):** Google service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL` /
+`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`), added as a Restricted user on the GSC property —
+**not** the OAuth refresh-token flow originally described here, to avoid the 7-day
+refresh-token expiry an unverified OAuth app is subject to. `lib/google/auth.ts` mints access
+tokens on demand from this service account; the same credentials will back GA4 (Section 7.3)
+once that integration is built.
 **Base URL:** `https://searchconsole.googleapis.com/v1`
 
 Key endpoints:
