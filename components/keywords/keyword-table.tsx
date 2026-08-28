@@ -27,7 +27,9 @@ export function KeywordTable({ keywords }: { keywords: TrackedKeyword[] }) {
                 <td className="px-4 py-2 font-medium text-foreground">{k.keyword}</td>
                 <td className="px-4 py-2 font-mono text-muted-foreground">{k.monthly_volume ?? '—'}</td>
                 <td className="px-4 py-2 font-mono text-muted-foreground">{k.keyword_difficulty ?? '—'}</td>
-                <td className="px-4 py-2 font-mono text-muted-foreground">{k.current_position ?? '—'}</td>
+                <td className="px-4 py-2 font-mono text-muted-foreground">
+                  {k.current_position ?? <span className="italic text-muted-foreground/70">No data yet</span>}
+                </td>
                 <td className={`px-4 py-2 font-mono ${change && change > 0 ? 'text-green-600' : change && change < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                   {change === null ? '—' : change === 0 ? '—' : change > 0 ? `▲${change}` : `▼${Math.abs(change)}`}
                 </td>
