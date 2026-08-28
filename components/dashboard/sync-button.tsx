@@ -4,7 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
-export function SyncButton() {
+interface SyncButtonProps {
+  endpoint?: string
+  label?: string
+}
+
+export function SyncButton({ endpoint = '/api/sync/ahrefs', label = 'Sync Ahrefs data' }: SyncButtonProps) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -14,7 +19,7 @@ export function SyncButton() {
       onClick={async () => {
         setLoading(true)
         try {
-          const res = await fetch('/api/sync/ahrefs', { method: 'POST' })
+          const res = await fetch(endpoint, { method: 'POST' })
           if (!res.ok) {
             const body = await res.json().catch(() => ({}))
             alert(body.error ?? 'Sync failed')
@@ -26,7 +31,7 @@ export function SyncButton() {
         }
       }}
     >
-      {loading ? 'Syncing…' : 'Sync Ahrefs data'}
+      {loading ? 'Syncing…' : label}
     </Button>
   )
 }
