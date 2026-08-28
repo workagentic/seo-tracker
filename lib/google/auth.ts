@@ -2,8 +2,18 @@ import { JWT } from 'google-auth-library'
 
 const clients = new Map<string, JWT>()
 
-function unescapePrivateKey(key: string): string {
-  return key.replace(/\\n/g, '\n')
+// Tolerates the common ways a PEM private key gets mangled when pasted into a hosting
+// provider's env var UI: surrounding quotes carried over from .env.local's quoted format,
+// leading/trailing whitespace, and either literal "\n" sequences or already-real newlines.
+function normalizePrivateKey(key: string): string {
+  let normalized = key.trim()
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1)
+  }
+  return normalized.replace(/\\n/g, '\n').trim()
 }
 
 function getClient(scopes: string[]): JWT {
@@ -19,7 +29,7 @@ function getClient(scopes: string[]): JWT {
     )
   }
 
-  const client = new JWT({ email, key: unescapePrivateKey(privateKey), scopes })
+  const client = new JWT({ email, key: normalizePrivateKey(privateKey), scopes })
   clients.set(cacheKey, client)
   return client
 }

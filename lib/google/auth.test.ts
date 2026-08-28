@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const getAccessTokenMock = vi.fn()
+const jwtConstructorMock = vi.fn((_opts: { email: string; key: string; scopes: string[] }) => ({
+  getAccessToken: getAccessTokenMock,
+}))
 vi.mock('google-auth-library', () => {
   return {
-    JWT: vi.fn(function JWT() {
-      return { getAccessToken: getAccessTokenMock }
-    }),
+    JWT: function (opts: { email: string; key: string; scopes: string[] }) {
+      return jwtConstructorMock(opts)
+    },
   }
 })
 
@@ -16,6 +19,7 @@ describe('getGoogleAccessToken', () => {
 
   beforeEach(() => {
     getAccessTokenMock.mockReset()
+    jwtConstructorMock.mockClear()
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'test@example.iam.gserviceaccount.com'
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
       '-----BEGIN PRIVATE KEY-----\\nabc123\\n-----END PRIVATE KEY-----\\n'
@@ -43,5 +47,34 @@ describe('getGoogleAccessToken', () => {
     await expect(getGoogleAccessToken(['yet-another-scope'])).rejects.toThrow(
       /Failed to obtain Google access token/
     )
+  })
+
+  it('strips surrounding double quotes carried over from a quoted .env value', async () => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      '"-----BEGIN PRIVATE KEY-----\\nquoted-key\\n-----END PRIVATE KEY-----\\n"'
+    getAccessTokenMock.mockResolvedValue({ token: 'fake-token' })
+    await getGoogleAccessToken(['quoted-scope'])
+    const passedKey = jwtConstructorMock.mock.calls[0]![0].key
+    expect(passedKey.startsWith('"')).toBe(false)
+    expect(passedKey).toBe('-----BEGIN PRIVATE KEY-----\nquoted-key\n-----END PRIVATE KEY-----')
+  })
+
+  it('accepts a key that already has real newlines instead of escaped ones', async () => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\nreal-newlines\n-----END PRIVATE KEY-----'
+    getAccessTokenMock.mockResolvedValue({ token: 'fake-token' })
+    await getGoogleAccessToken(['real-newline-scope'])
+    const passedKey = jwtConstructorMock.mock.calls[0]![0].key
+    expect(passedKey).toBe('-----BEGIN PRIVATE KEY-----\nreal-newlines\n-----END PRIVATE KEY-----')
+  })
+
+  it('trims leading/trailing whitespace from a pasted value', async () => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY =
+      '  \n-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n  \n'
+    getAccessTokenMock.mockResolvedValue({ token: 'fake-token' })
+    await getGoogleAccessToken(['whitespace-scope'])
+    const passedKey = jwtConstructorMock.mock.calls[0]![0].key
+    expect(passedKey.startsWith(' ') || passedKey.startsWith('\n')).toBe(false)
+    expect(passedKey.endsWith(' ') || passedKey.endsWith('\n\n')).toBe(false)
   })
 })
