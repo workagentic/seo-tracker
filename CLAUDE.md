@@ -93,10 +93,10 @@ There are four roles. Store role in the `profiles` table.
 
 | Role | Who | What they can see |
 |---|---|---|
-| `admin` | Abdullah Shekha | Everything. Can manage users, competitors, keywords, metric snapshots, all tasks |
-| `head` | Tabish Khalid | Everything except user management. Can edit all tasks, run quarterly review |
-| `owner` | All other named team members | Their own tasks + dashboard + scorecard (read-only on others' tasks) |
-| `leadership` | Haroon, Adeela | Full read access everywhere. Cannot edit tasks or data |
+| `admin` | Abdullah Shekha, Syed Ali, Haroon (updated 28 Aug 2026 — see Section 12.10) | Everything. Can manage users, competitors, keywords, metric snapshots, all tasks |
+| `head` | *(vacant as of 28 Aug 2026 — Tabish moved to `owner`, see Section 12.10)* | Everything except user management. Can edit all tasks, run quarterly review |
+| `owner` | Tabish Khalid, and all other named team members not listed above | Their own tasks + dashboard + scorecard (read-only on others' tasks) |
+| `leadership` | Adeela | Full read access everywhere. Cannot edit tasks or data |
 
 **Route protection:** `middleware.ts` checks Supabase session on every request. Unauthenticated users are redirected to `/login`. Admin-only routes (`/admin/*`) check role server-side.
 
@@ -668,7 +668,11 @@ Store quarter boundaries in `lib/constants.ts` as a configurable array so Haroon
 
 ### 10.1 Team Members (seed into `profiles` via admin)
 
-| Full Name | Role | Job Title |
+Original seed roles below; **roles were reassigned 28 Aug 2026** (Syed Ali and Haroon
+promoted to `admin`, Tabish moved from `head` to `owner`) — see Section 12.10 for the
+current, authoritative role table.
+
+| Full Name | Role (original seed) | Job Title |
 |---|---|---|
 | Abdullah Shekha | admin | Analyst / Supervisor |
 | Tabish Khalid | head | Head of SEO & Content |
@@ -918,7 +922,25 @@ pnpm dev
 
 **9. Data is additive.** Never delete or overwrite historical `metric_snapshots`. Each quarter-end creates a new row. Historical rows are read-only once created.
 
-**10. Abdullah is the only admin.** The system should enforce this — only one user with `role = 'admin'` should exist. The admin panel is not a multi-admin interface.
+**10. Multiple admins as of 28 Aug 2026 (supersedes the original "Abdullah is the only
+admin" rule).** Abdullah Shekha requested Syed Ali and Haroon be promoted to `admin`, and
+Tabish Khalid moved from `head` to `owner` (so the `head` role is currently vacant). Nothing
+in code enforced a single-admin constraint (it was a documented convention, not a DB
+constraint or check), so this was a plain `profiles.role` update for the three affected
+rows — no schema or RLS change needed, since every `admin`-gated check already compares
+`role === 'admin'` generically rather than a specific user. Current authoritative roles:
+
+| Full Name | Role |
+|---|---|
+| Abdullah Shekha | admin |
+| Syed Ali | admin |
+| Haroon | admin |
+| Tabish Khalid | owner |
+| Talha Azeem, Usman Ali, Najma Furqan, Lavi Shamoon, Hameed Ishaq | owner |
+| Adeela | leadership |
+
+If this needs to change again, update `profiles.role` directly (no admin UI exists for
+bulk role changes) and update this section plus Section 4's role table to match.
 
 ---
 
