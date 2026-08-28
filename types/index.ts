@@ -34,6 +34,17 @@ export interface Task {
   co_assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
 }
 
+export interface TaskActivity {
+  id: string
+  task_id: string
+  changed_by: string | null
+  field: string
+  old_value: string | null
+  new_value: string | null
+  created_at: string
+  changed_by_profile?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
 export type MetricKey =
   | 'domain_rating'
   | 'organic_traffic_global'

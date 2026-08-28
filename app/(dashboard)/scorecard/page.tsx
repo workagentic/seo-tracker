@@ -5,6 +5,7 @@ import { getAllSnapshots } from '@/lib/metrics'
 import { getQuarterlyTargets } from '@/lib/targets'
 import { ScorecardTable } from '@/components/scorecard/scorecard-table'
 import { QuarterSelector } from '@/components/scorecard/quarter-selector'
+import { ExportButtons } from '@/components/scorecard/export-buttons'
 
 export default async function ScorecardPage({
   searchParams,
@@ -22,9 +23,11 @@ export default async function ScorecardPage({
   const snapshot = matches.length > 0 ? matches[matches.length - 1] : null
   const target = targets[selected]
 
+  const canExport = profile && ['admin', 'head'].includes(profile.role)
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between print:hidden">
         <h1 className="text-xl font-semibold text-foreground">Quarterly Scorecard</h1>
         <div className="flex items-center gap-3">
           {profile?.role === 'admin' && (
@@ -35,6 +38,14 @@ export default async function ScorecardPage({
           <QuarterSelector current={selected} />
         </div>
       </div>
+      <h1 className="mb-4 hidden text-xl font-semibold text-foreground print:block">
+        Quarterly Scorecard — {target.label}
+      </h1>
+      {canExport && (
+        <div className="mb-4 flex justify-end">
+          <ExportButtons snapshot={snapshot} target={target} quarterLabel={target.label} />
+        </div>
+      )}
       <ScorecardTable snapshot={snapshot} target={target} />
     </div>
   )

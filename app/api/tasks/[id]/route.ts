@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { computeTaskActivityEntries } from '@/lib/tasks/activity'
 import type { Task } from '@/types'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,8 +10,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminSupabaseClient()
-  const { data: task } = (await admin.from('tasks').select('assigned_to, co_assigned_to').eq('id', id).single()) as unknown as {
-    data: Pick<Task, 'assigned_to' | 'co_assigned_to'> | null
+  const { data: task } = (await admin.from('tasks').select('*').eq('id', id).single()) as unknown as {
+    data: Task | null
   }
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -46,6 +47,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Only admins can edit task details beyond status/notes' }, { status: 403 })
   }
 
+  const activityEntries = computeTaskActivityEntries(task as unknown as Record<string, unknown>, allowedFields)
+
   if (allowedFields.status === 'completed') allowedFields.completed_at = new Date().toISOString()
   allowedFields.updated_at = new Date().toISOString()
   allowedFields.updated_by = profile.id
@@ -53,6 +56,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const result = await admin.from('tasks').update(allowedFields as never).eq('id', id).select().single()
   const { data, error } = result as unknown as { data: Task | null; error: { message: string } | null }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (activityEntries.length > 0) {
+    await admin.from('task_activity').insert(
+      activityEntries.map((entry) => ({
+        task_id: id,
+        changed_by: profile.id,
+        field: entry.field,
+        old_value: entry.old_value,
+        new_value: entry.new_value,
+      })) as never
+    )
+  }
 
   return NextResponse.json({ task: data })
 }

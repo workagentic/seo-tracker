@@ -5,6 +5,7 @@ import type { Profile, Task } from '@/types'
 import { TaskStatusSelect } from './task-status-select'
 import { TaskFormDialog } from './task-form-dialog'
 import { DeleteTaskButton } from './delete-task-button'
+import { TaskHistoryDialog } from './task-history-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
@@ -72,7 +73,7 @@ export function TaskList({
               <SortableTh label="Co-owner" sortKey="co_owner" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Due" sortKey="due_date" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
-              {isAdmin && <th className="px-4 py-2" />}
+              <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -96,20 +97,23 @@ export function TaskList({
                   <td className="px-4 py-2">
                     <TaskStatusSelect taskId={task.id} status={task.status} disabled={!canEdit} />
                   </td>
-                  {isAdmin && (
-                    <td className="px-4 py-2">
-                      <div className="flex gap-1">
-                        <TaskFormDialog owners={owners} task={task} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
-                        <DeleteTaskButton taskId={task.id} actionNumber={task.action_number} />
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1">
+                      <TaskHistoryDialog taskId={task.id} actionNumber={task.action_number} />
+                      {isAdmin && (
+                        <>
+                          <TaskFormDialog owners={owners} task={task} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
+                          <DeleteTaskButton taskId={task.id} actionNumber={task.action_number} />
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               )
             })}
             {visibleTasks.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
                   No tasks match your search.
                 </td>
               </tr>
