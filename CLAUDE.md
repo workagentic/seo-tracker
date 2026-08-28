@@ -392,7 +392,9 @@ of this table that named endpoints (`/backlinks`, `/positions`, `/referring-doma
 refresh-token expiry an unverified OAuth app is subject to. `lib/google/auth.ts` mints access
 tokens on demand from this service account; the same credentials will back GA4 (Section 7.3)
 once that integration is built.
-**Base URL:** `https://searchconsole.googleapis.com/v1`
+**Base URL (corrected 29 Aug 2026):** `https://searchconsole.googleapis.com/webmasters/v3` —
+**not** `/v1`, which 404s specifically for `searchAnalytics.query` (confirmed against the
+live API; `/v1` exists and works for other Search Console endpoints, just not this one).
 
 Key endpoints:
 - `POST /sites/{siteUrl}/searchAnalytics/query` — pulls clicks, impressions, CTR, position for specified date range and dimensions (query, page, country, device)

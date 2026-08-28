@@ -1,7 +1,10 @@
 import { getGoogleAccessToken } from '@/lib/google/auth'
 
 const GSC_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly'
-const SEARCH_CONSOLE_BASE = 'https://searchconsole.googleapis.com/v1'
+// searchAnalytics.query only exists under the older Webmasters API path — the newer
+// searchconsole.googleapis.com/v1 path 404s for this specific endpoint (confirmed against
+// the live API 29 Aug 2026; v1 does exist for other Search Console endpoints, just not this one).
+const SEARCH_CONSOLE_BASE = 'https://searchconsole.googleapis.com/webmasters/v3'
 // GSC data typically lags 2-3 days behind real-time, so the window ends 2 days ago rather
 // than today to avoid a trailing tail of partial/zero rows.
 const REPORT_LAG_DAYS = 2
