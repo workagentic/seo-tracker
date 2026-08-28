@@ -29,6 +29,7 @@ export interface Task {
   completed_at: string | null
   created_at: string
   updated_at: string
+  updated_by: string | null
   assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   co_assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
 }

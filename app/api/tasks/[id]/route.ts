@@ -26,6 +26,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.notes === 'string') allowedFields.notes = body.notes
   if (allowedFields.status === 'completed') allowedFields.completed_at = new Date().toISOString()
   allowedFields.updated_at = new Date().toISOString()
+  allowedFields.updated_by = profile.id
 
   const result = await admin.from('tasks').update(allowedFields as never).eq('id', id).select().single()
   const { data, error } = result as unknown as { data: Task | null; error: { message: string } | null }

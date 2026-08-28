@@ -1,5 +1,6 @@
 import type { Profile } from '@/types'
 import { SignOutButton } from './sign-out-button'
+import { NotificationBell } from './notification-bell'
 
 export function Topbar({ profile }: { profile: Profile }) {
   return (
@@ -7,7 +8,10 @@ export function Topbar({ profile }: { profile: Profile }) {
       <div className="text-sm text-muted-foreground">
         Signed in as <span className="font-medium text-foreground">{profile.full_name}</span> · {profile.role}
       </div>
-      <SignOutButton />
+      <div className="flex items-center gap-2">
+        <NotificationBell />
+        <SignOutButton />
+      </div>
     </header>
   )
 }
