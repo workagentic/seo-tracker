@@ -449,8 +449,8 @@ of this table that named endpoints (`/backlinks`, `/positions`, `/referring-doma
 `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`), added as a Restricted user on the GSC property —
 **not** the OAuth refresh-token flow originally described here, to avoid the 7-day
 refresh-token expiry an unverified OAuth app is subject to. `lib/google/auth.ts` mints access
-tokens on demand from this service account; the same credentials will back GA4 (Section 7.3)
-once that integration is built.
+tokens on demand from this service account; the same credentials also back GA4 (Section 7.3,
+implemented 29 Aug 2026).
 **Base URL (corrected 29 Aug 2026):** `https://searchconsole.googleapis.com/webmasters/v3` —
 **not** `/v1`, which 404s specifically for `searchAnalytics.query` (confirmed against the
 live API; `/v1` exists and works for other Search Console endpoints, just not this one).
@@ -702,8 +702,10 @@ and the on-screen table can't drift apart.
 - Sortable by any column
 - EA's row always pinned and highlighted. **Implemented** (`lib/competitors.ts`'s `compareToEA`)
   — EA's latest `metric_snapshots` row renders as a highlighted first row, and each
-  competitor's cell shows a ▲/▼ + % delta versus EA (green ahead, red behind), not just a
-  delta from the competitor's own last sync.
+  competitor's cell shows a ▲/▼ + % delta **from EA's perspective**, not the competitor's: a
+  competitor ahead of EA on a metric shows red/▼ (EA is behind), and one EA beats shows
+  green/▲ (EA is ahead). Fixed 29 Aug 2026 — the first version had this inverted (showed the
+  competitor's own gain/loss, so a competitor far ahead of EA read as a green "win").
 - Weekly history is captured automatically into `competitor_snapshots` (Section 5.11) by the
   weekly cron (Section 8.9) — no trend chart built on top of it yet.
 
@@ -799,7 +801,7 @@ Accessible only to `admin` role (Abdullah Shekha).
 
 **Sub-pages:**
 - `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only). **Implemented.**
-- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh and GA4 sync are also implemented, but both trigger from `/dashboard` (GSC's button is actually on `/keywords` — see Section 8.6) — Clarity still has no integration code yet (v2, Section 12.6).
+- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh, GA4 sync, and Clarity sync are all also implemented, but all three trigger elsewhere: GSC's button is on `/keywords` (Section 8.6), GA4's and Clarity's are on `/dashboard` (Section 8.2).
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
 - `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID (both now actually used — Section 7.2/7.3). **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
 
@@ -1134,9 +1136,13 @@ already has data for.
 
 **4. Ahrefs API access level matters.** Verify which API plan EA has. The v3 API with Site Explorer access is needed for most of the integrations above. If only Rank Tracker API is available, adjust the data sources accordingly and note what falls back to manual entry.
 
-**5. Google auth must cover both GSC and GA4.** A single Google service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`) covers both, added as a user on the GSC property and a Viewer on the GA4 property — not the OAuth refresh-token flow this note originally described (see Section 7.2's Auth note). `lib/google/auth.ts` mints scoped access tokens on demand; GA4 (Section 7.3) should reuse the same module rather than growing a parallel auth path.
+**5. Google auth must cover both GSC and GA4.** A single Google service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`) covers both, added as a user on the GSC property and a Viewer on the GA4 property — not the OAuth refresh-token flow this note originally described (see Section 7.2's Auth note). `lib/google/auth.ts` mints scoped access tokens on demand; GA4 (Section 7.3, implemented 29 Aug 2026) reuses this same module rather than a parallel auth path, as planned.
 
-**6. Microsoft Clarity API is limited.** If the programmatic API doesn't provide the needed metrics, fall back to an embedded iframe of the Clarity dashboard. Wrap it in an auth check so only logged-in EA users can view it.
+**6. Microsoft Clarity API turned out not to be limited — implemented 29 Aug 2026.** The
+programmatic API (Section 7.4) returns everything needed (sessions, bot detection, dead/rage
+clicks, scroll depth, top pages); the originally-planned `<iframe>` embed fallback was never
+needed. The one real limitation is `numOfDays` being capped at 3 on the current plan — see
+Section 7.4.
 
 **7. No public-facing pages.** Every route must be behind Supabase auth. `middleware.ts` should redirect all unauthenticated requests to `/login`. There is no public dashboard, no sharing links, no guest access.
 
@@ -1186,9 +1192,12 @@ The tool is considered v1-complete when:
 - [x] The competitor table is editable (add/remove domains)
 - [x] The keyword table supports CSV import
 
-Everything in Section 8 beyond this list is v2 scope (weekly email reports, GA4 integration, Clarity embed, charts/sparklines) and should be built after v1 is stable and in use by the team.
+Everything in Section 8 beyond this list was originally v2 scope. As of 29 Aug 2026, all of
+it is built except the weekly report's email notification (see Section 14) — GA4, Clarity,
+dashboard charts, the weekly report page, the task activity log, the daily overdue cron, and
+scorecard CSV/PDF export are all live.
 
-## 14. Implementation Status (as of 28 Aug 2026)
+## 14. Implementation Status (as of 29 Aug 2026)
 
 The bullets in Section 13 are the original v1 checklist and are all functionally in place, but
 a few things worth knowing before calling this done:
@@ -1254,4 +1263,4 @@ a few things worth knowing before calling this done:
 ---
 
 *This document is the single source of truth for the EA SEO Tracker build. Update it as the project evolves.*
-*Last updated: 28 August 2026 — Abdullah Shekha*
+*Last updated: 29 August 2026 — Abdullah Shekha*
