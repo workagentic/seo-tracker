@@ -1,7 +1,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { getLatestSnapshot } from '@/lib/metrics'
-import { QUARTERLY_TARGETS, getCurrentQuarter } from '@/lib/constants'
+import { getQuarterlyTargets } from '@/lib/targets'
+import { getCurrentQuarter } from '@/lib/constants'
 import { StatTile } from '@/components/dashboard/stat-tile'
 import { SyncButton } from '@/components/dashboard/sync-button'
 
@@ -11,9 +12,9 @@ const decimal = (n: number) => n.toFixed(1)
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
   const profile = await getCurrentProfile()
-  const snapshot = await getLatestSnapshot(supabase)
-  const quarter = getCurrentQuarter(new Date()) as keyof typeof QUARTERLY_TARGETS
-  const targets = QUARTERLY_TARGETS[quarter] ?? QUARTERLY_TARGETS.Q1
+  const [snapshot, allTargets] = await Promise.all([getLatestSnapshot(supabase), getQuarterlyTargets(supabase)])
+  const quarter = getCurrentQuarter(new Date())
+  const targets = allTargets[quarter] ?? allTargets.Q1
   const canSync = profile && ['admin', 'head'].includes(profile.role)
 
   return (

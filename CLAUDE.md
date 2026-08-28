@@ -302,6 +302,31 @@ create table competitor_snapshots (
 );
 ```
 
+### 5.12 `quarterly_targets`
+Added `0007_quarterly_targets.sql`. Admin-editable replacement for the `QUARTERLY_TARGETS`
+constant (Section 10.3) — see Section 8.4's "Edit Targets" and Section 12 note 11.
+```sql
+create table quarterly_targets (
+  quarter_key text primary key,  -- 'baseline' | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Q5'
+  label text not null,
+  target_date date not null,
+  domain_rating integer,
+  organic_traffic_global integer,
+  organic_traffic_us integer,
+  organic_keywords_global integer,
+  organic_keywords_us integer,
+  keywords_top_3 integer,
+  keywords_top_10 integer,
+  traffic_value_monthly numeric,
+  referring_domains_total integer,
+  referring_domains_quality integer,
+  avg_keywords_per_page numeric,
+  indexed_content_pages integer,
+  updated_by uuid references profiles(id),
+  updated_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -509,11 +534,18 @@ Each stat tile shows:
 
 **Scorecard table columns:**
 - Critical Statistic
-- Target (from `QUARTERLY_TARGETS` constant)
+- Target (from the `quarterly_targets` table — see Section 10.3, "Implemented (28 Aug 2026)")
 - Actual (from `metric_snapshots` for the selected quarter)
 - Variance (actual − target, shown as % and absolute)
 - RAG status badge
 - Accountable Owner (from accountability map — see Section 10)
+
+**Edit Targets (`/scorecard/edit`, admin only — implemented 28 Aug 2026):** a link on
+`/scorecard` visible only to `admin`. Lets an admin correct any quarter's target numbers
+(all 12 metrics) without a code deploy — `PATCH /api/admin/targets`. Does **not** edit
+Actual values (those still come from `/admin/metrics` or a sync); this only changes what
+"on target" means. Target and Actual are intentionally kept separate — see Section 12
+note 11.
 
 **RAG thresholds (from Section 11.4 of strategy doc):**
 - 🟢 Green — actual ≥ 95% of target
@@ -739,6 +771,13 @@ Original seed (still live for Talha/Lavi/Tabish; historical reference only for t
 | A34 | Re-run full report each quarter | Tabish Khalid | Abdullah Shekha | Recurring | All |
 
 ### 10.3 Quarterly Targets (`lib/constants.ts`)
+
+**Implemented (28 Aug 2026):** these values now live in the `quarterly_targets` table
+(migration `0007_quarterly_targets.sql`), seeded from exactly the numbers below, and are
+editable by admins via `/scorecard/edit` (Section 8.4). `lib/targets.ts`'s
+`getQuarterlyTargets()` reads from the table and falls back to this constant only if the
+table is empty (e.g. the migration hasn't been run yet in a given environment) — the
+constant below is the seed data / fallback default, not the live source of truth anymore.
 
 ```typescript
 export const QUARTERLY_TARGETS = {
@@ -967,6 +1006,13 @@ rows — no schema or RLS change needed, since every `admin`-gated check already
 If this needs to change again, update `profiles.role` directly (no admin UI exists for
 bulk role changes) and update this section plus Section 4's role table to match.
 
+**11. Scorecard Target vs. Actual are deliberately separate editable surfaces (28 Aug
+2026).** `/scorecard/edit` (admin only) edits **Target** numbers in `quarterly_targets`.
+Actual numbers are a different table (`metric_snapshots`) edited via `/admin/metrics` or
+written by a sync. Abdullah's stated direction: Actual should eventually be pulled
+automatically from GA4/GSC first, then Ahrefs/Clarity — not built yet (v2, Section 12.5–12.6)
+— manual entry via `/admin/metrics` remains the only way to set Actual values until then.
+
 ---
 
 ## 13. Definition of Done (v1)
@@ -1008,6 +1054,10 @@ a few things worth knowing before calling this done:
   notifications (`lib/notifications.ts`); no persisted notifications table.
 - Weekly `competitor_snapshots` history + automated Monday cron for both GSC keywords and
   competitors (Section 8.9's "Weekly automation").
+- Quarterly Target values moved from a hardcoded constant to an admin-editable
+  `quarterly_targets` table, editable via `/scorecard/edit` (Section 8.4/10.3).
+- Live tasks/competitors/keywords data replaced from the SEO team's updated planning
+  documents (Section 10.2/12 notes 1-2) — 58 tasks, 8 competitors, 96 keywords as of import.
 
 **Known gaps (not yet built):**
 - Task detail slide-in panel's full activity log (Section 8.3) — `tasks.updated_by` (added
