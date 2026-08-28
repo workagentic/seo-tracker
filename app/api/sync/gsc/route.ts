@@ -56,10 +56,19 @@ export async function POST() {
   let succeeded = 0
   for (const match of matches) {
     const roundedPosition = Math.round(match.position)
+
+    // If this keyword was already synced today, this is a same-day re-sync: keep the
+    // existing previous_position instead of rolling it forward to today's already-written
+    // current_position (which would permanently destroy the real prior rank).
+    const isSameDayResync = match.keyword.position_updated_at?.slice(0, 10) === today
+    const previousPosition = isSameDayResync
+      ? match.keyword.previous_position
+      : match.keyword.current_position
+
     const { error: updateError } = await admin
       .from('tracked_keywords')
       .update({
-        previous_position: match.keyword.current_position,
+        previous_position: previousPosition,
         current_position: roundedPosition,
         position_updated_at: new Date().toISOString(),
       } as never)
@@ -67,12 +76,26 @@ export async function POST() {
 
     if (updateError) continue
 
-    const { error: historyError } = await admin.from('keyword_history').insert({
-      keyword_id: match.keyword.id,
-      recorded_at: today,
-      position: roundedPosition,
-      url: match.page,
-    } as never)
+    // Patch today's history row instead of duplicating it if this keyword was already
+    // synced today (mirrors the "patch today's snapshot" pattern in the Ahrefs sync route).
+    const { data: existingHistory } = await admin
+      .from('keyword_history')
+      .select('id')
+      .eq('keyword_id', match.keyword.id)
+      .eq('recorded_at', today)
+      .maybeSingle()
+
+    const { error: historyError } = existingHistory
+      ? await admin
+          .from('keyword_history')
+          .update({ position: roundedPosition, url: match.page } as never)
+          .eq('id', (existingHistory as { id: string }).id)
+      : await admin.from('keyword_history').insert({
+          keyword_id: match.keyword.id,
+          recorded_at: today,
+          position: roundedPosition,
+          url: match.page,
+        } as never)
 
     if (!historyError) succeeded++
   }
