@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const getAccessTokenMock = vi.fn()
-const jwtConstructorMock = vi.fn((_opts: { email: string; key: string; scopes: string[] }) => ({
-  getAccessToken: getAccessTokenMock,
-}))
+const jwtConstructorMock = vi.fn<(opts: { email: string; key: string; scopes: string[] }) => { getAccessToken: typeof getAccessTokenMock }>(
+  () => ({ getAccessToken: getAccessTokenMock })
+)
 vi.mock('google-auth-library', () => {
   return {
     JWT: function (opts: { email: string; key: string; scopes: string[] }) {
