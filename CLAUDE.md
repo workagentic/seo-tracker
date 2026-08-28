@@ -585,7 +585,7 @@ Accessible only to `admin` role (Abdullah Shekha).
 
 **Sub-pages:**
 - `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only). **Implemented.**
-- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs only** — GSC/GA4/Clarity have no integration code yet (v2, Section 12.5–12.6), so there's nothing to trigger for them.
+- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh sync is also implemented, but triggered from `/keywords` instead (see Section 8.6) — GA4/Clarity still have no integration code yet (v2, Section 12.5–12.6).
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
 - `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID fields stored for when those integrations are built. **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
 
@@ -868,7 +868,7 @@ pnpm dev
 
 **4. Ahrefs API access level matters.** Verify which API plan EA has. The v3 API with Site Explorer access is needed for most of the integrations above. If only Rank Tracker API is available, adjust the data sources accordingly and note what falls back to manual entry.
 
-**5. Google auth must cover both GSC and GA4.** Use a single OAuth flow with both scopes: `https://www.googleapis.com/auth/webmasters.readonly` and `https://www.googleapis.com/auth/analytics.readonly`. Store the refresh token server-side in env vars — do not ask users to individually authenticate.
+**5. Google auth must cover both GSC and GA4.** A single Google service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`) covers both, added as a user on the GSC property and a Viewer on the GA4 property — not the OAuth refresh-token flow this note originally described (see Section 7.2's Auth note). `lib/google/auth.ts` mints scoped access tokens on demand; GA4 (Section 7.3) should reuse the same module rather than growing a parallel auth path.
 
 **6. Microsoft Clarity API is limited.** If the programmatic API doesn't provide the needed metrics, fall back to an embedded iframe of the Clarity dashboard. Wrap it in an auth check so only logged-in EA users can view it.
 
