@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { TaskList } from '@/components/tasks/task-list'
 import { TaskFilters } from '@/components/tasks/task-filters'
+import { TaskFormDialog } from '@/components/tasks/task-form-dialog'
 import { Q1Banner } from '@/components/tasks/q1-banner'
 import type { Task } from '@/types'
 
@@ -33,10 +34,13 @@ export default async function TasksPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-foreground">Task Tracker</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Task Tracker</h1>
+        {profile.role === 'admin' && <TaskFormDialog owners={owners ?? []} />}
+      </div>
       <Q1Banner />
       <TaskFilters owners={owners ?? []} />
-      <TaskList tasks={(tasks as Task[]) ?? []} currentProfile={profile} />
+      <TaskList tasks={(tasks as Task[]) ?? []} currentProfile={profile} owners={owners ?? []} />
     </div>
   )
 }

@@ -487,6 +487,16 @@ Each stat tile shows:
 
 **Purpose:** The 34-action register from Section 11.1, turned into a live task board.
 
+**Add/Edit/Delete (admin only — implemented 28 Aug 2026):** a "New Task" button and per-row
+Edit/Delete actions appear only for `role = 'admin'` — distinct from the head/owner status
+editing already described below. `POST /api/tasks` creates; `PATCH /api/tasks/[id]` accepts
+`action_number`/`title`/`description`/`position_responsible`/`assigned_to`/
+`co_assigned_to`/`due_date`/`quarter` only when the caller is admin (non-admins get 403 if
+they send any of those fields — `status`/`notes` still follow the existing head/owner rule);
+`DELETE /api/tasks/[id]` is admin-only (hard delete — `tasks` has no `is_active` column).
+RLS: `tasks_delete_admin` (migration `0008`) backs the delete path for defense-in-depth,
+though the route itself uses the service-role client.
+
 **Views:** Toggle between List view and Kanban view (columns: Pending / In Progress / Completed / Blocked / Overdue).
 
 **Filters (always visible):**

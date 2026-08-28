@@ -1,8 +1,20 @@
 import type { Profile, Task } from '@/types'
 import { TaskStatusSelect } from './task-status-select'
+import { TaskFormDialog } from './task-form-dialog'
+import { DeleteTaskButton } from './delete-task-button'
+import { Button } from '@/components/ui/button'
 
-export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProfile: Profile }) {
+export function TaskList({
+  tasks,
+  currentProfile,
+  owners,
+}: {
+  tasks: Task[]
+  currentProfile: Profile
+  owners: { id: string; full_name: string }[]
+}) {
   const today = new Date().toISOString().slice(0, 10)
+  const isAdmin = currentProfile.role === 'admin'
 
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card">
@@ -15,6 +27,7 @@ export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProf
             <th className="px-4 py-2">Co-owner</th>
             <th className="px-4 py-2">Due</th>
             <th className="px-4 py-2">Status</th>
+            {isAdmin && <th className="px-4 py-2" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -38,6 +51,14 @@ export function TaskList({ tasks, currentProfile }: { tasks: Task[]; currentProf
                 <td className="px-4 py-2">
                   <TaskStatusSelect taskId={task.id} status={task.status} disabled={!canEdit} />
                 </td>
+                {isAdmin && (
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1">
+                      <TaskFormDialog owners={owners} task={task} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
+                      <DeleteTaskButton taskId={task.id} actionNumber={task.action_number} />
+                    </div>
+                  </td>
+                )}
               </tr>
             )
           })}
