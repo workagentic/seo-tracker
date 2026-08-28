@@ -687,7 +687,19 @@ current, authoritative role table.
 
 ### 10.2 34 Actions (`tasks` seed)
 
-Pre-seed all 34 actions from Section 11.1. Key fields below. Map `position_responsible` to profile IDs after users are created. `assigned_to` should be set to the primary named owner; `co_assigned_to` to the secondary.
+**Superseded 28 Aug 2026 for 6 team members.** The SEO team provided updated per-person
+action trackers (`Documents from SEO Team/EA_SEO_Team_Action_Tracker_Updated.xlsx`).
+Najma Furqan, Usman Ali, Haroon, Syed Ali, Abdullah Shekha, and Hameed Ishaq's original
+primary-owned tasks below were deleted and replaced with 43 new tasks (`A35`–`A77`) sourced
+from that file — the original numbering (A1, A3, A5, A6, A8, A9, A11, A13, A15, A16, A17,
+A21, A22, A24, A28, A29, A31, A32) is reused below for historical reference only and no
+longer reflects live data for those 6 people. **Talha Azeem, Lavi Shamoon, and Tabish
+Khalid's tasks were left untouched** (no updated tracker existed for them). The new tasks'
+`notes` field carries the original "Ownership"/"Category"/due-date-as-written text verbatim
+where it couldn't be cleanly mapped to a real column (e.g. "Ongoing", "(To be decided)",
+multi-person collaboration credit beyond the single `co_assigned_to` FK).
+
+Original seed (still live for Talha/Lavi/Tabish; historical reference only for the other 6):
 
 | Action | Title | Primary Owner | Co-Owner | Due Date | Quarter |
 |---|---|---|---|---|---|
@@ -904,9 +916,22 @@ pnpm dev
 
 ## 12. Important Notes for Implementation
 
-**1. Competitors list is not yet finalised.** As of 25 August 2026, Tabish Khalid and Talha Azeem are revising the competitor domain list. Do not hardcode the 19 original domains. The `competitors` table with admin CRUD is the right approach — Abdullah will add them via `/admin` once the updated list arrives.
+**1. Competitors list finalised 28 Aug 2026.** The original 19-domain placeholder list is
+deactivated (`is_active = false`, not deleted). The live list is now the 8 domains from
+`Documents from SEO Team/Expertise Accelerated SEO and Competitors.docx`: bench.co,
+1800accountant.com, accountingdepartment.com, nowcfo.com, bookkeeping-services.com,
+bookkeeper.com, sdocpa.com, skfinancial.com — with DR/traffic/keywords/ref-domains seeded
+from that doc's snapshot (not yet Ahrefs-synced as of import; run "Sync competitors" to
+refresh). The `competitors` table with admin CRUD is still the right approach for future
+changes.
 
-**2. Keywords list is also pending.** Same situation. Build the import CSV flow and seed with the priority-1 striking-distance keywords from Section 4.1 as placeholders only.
+**2. Keywords list finalised 28 Aug 2026.** The original placeholder keywords are
+deactivated (`is_active = false`, not deleted). The live list is now the 96 keywords from
+`Documents from SEO Team/EA Keywords - SEO.xlsx`'s "Keywords Q1" sheet — imported with only
+the `keyword` field populated (that sheet had no volume/KD/CPC/category/priority/target_url
+data); those fields can be filled in via the existing CSV re-import flow or manual edits.
+Run "Refresh from GSC" afterward to populate `current_position` for any of these that GSC
+already has data for.
 
 **3. Quality referring domains requires manual entry.** The Ahrefs API doesn't cleanly filter for DR30+, dofollow, non-spam in a single call. Abdullah will run this census manually each quarter and enter the figure via `/admin/metrics`. The automatic sync should not overwrite this field.
 
