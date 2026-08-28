@@ -349,6 +349,27 @@ create table ga4_snapshots (
 );
 ```
 
+### 5.14 `clarity_snapshots`
+Added `0010_clarity_snapshots.sql`. See Section 7.4. One row per day, trailing-3-day window
+each pull (the plan's hard cap, not a design choice). `top_pages` is a JSON array of
+`{ url, visits }`.
+```sql
+create table clarity_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  snapshot_date date not null,
+  total_sessions integer,
+  bot_sessions integer,
+  distinct_users integer,
+  dead_click_count integer,
+  rage_click_count integer,
+  script_error_count integer,
+  avg_scroll_depth numeric,
+  top_pages jsonb,
+  created_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -453,18 +474,39 @@ Displayed in a "Website Analytics (GA4)" card on `/dashboard` (`Ga4Panel`) — G
 side by side, no RAG/target coloring (GA4 metrics aren't part of the 12-KPI target system).
 
 ### 7.4 Microsoft Clarity API
-**Base URL:** `https://www.clarity.ms/export/api/v1`
-**Auth:** Bearer token
+**Implemented 29 Aug 2026.** `lib/clarity/client.ts`'s `fetchClarityInsights()`.
 
-Key data points:
-- Session recordings count
-- Heatmap engagement scores
-- Top pages by engagement
-- Dead clicks, rage clicks, scroll depth
+**Base URL (corrected):** `https://www.clarity.ms/export-data/api/v1` — **not**
+`/export/api/v1` as originally documented here, which 404s. Confirmed against the live API.
+**Auth:** Bearer token (`CLARITY_API_TOKEN`).
 
-Clarity data supplements the dashboard's "content performance" view. Pull monthly. Store in a `clarity_snapshots` table (add to schema).
+**Key endpoint:** `GET /project-live-insights?numOfDays=3` — `numOfDays` is **capped at 3** on
+the current plan (7 returns `400 Bad Request`), so this can only ever report a trailing
+3-day window, never a full week or month.
 
-**Fallback:** Clarity's API has limited programmatic access. If the API doesn't return what's needed, embed the Clarity dashboard in an `<iframe>` inside the tool using the project's embed URL, accessible only to logged-in users.
+Metrics pulled: total/bot session counts, distinct users, dead click / rage click / script
+error counts, average scroll depth, and top 5 pages by visits (from the API's `Traffic`,
+`DeadClickCount`, `RageClickCount`, `ScriptErrorCount`, `ScrollDepth`, and `PopularPages`
+metrics — the API returns 16 metrics total; `Browser`/`Device`/`OS`/`Country`/`PageTitle`/
+`ReferrerUrl`/`ExcessiveScroll`/`ErrorClickCount`/`EngagementTime` are available but not
+currently surfaced).
+
+**Bot traffic finding (29 Aug 2026):** live data showed 127 of 132 sessions (96%) flagged as
+bot by Clarity's own `totalBotSessionCount` field. The dashboard panel (`ClarityPanel`)
+surfaces a warning banner whenever bot sessions are ≥50% of total, similar in spirit to a
+GA4 spam-traffic finding seen on another project — don't take the raw session count at face
+value without checking this first.
+
+Stored in `clarity_snapshots` (Section 5.14), same "patch today's row" pattern as
+`ga4_snapshots`. Displayed in a "Content Performance (Clarity)" card on `/dashboard`
+(admin/head-only "Sync Clarity" button), and included in the weekly cron
+(`/api/cron/weekly-snapshot`) alongside GSC/Ahrefs/GA4 — the spec's original "pull monthly"
+suggestion is superseded by folding it into the existing weekly cron for simplicity, which
+if anything gives fresher (if still only 3-day-window) data than a monthly pull would.
+
+**Fallback (not needed — API access works):** embedding the Clarity dashboard in an
+`<iframe>` was the originally planned fallback if the API didn't return enough; it wasn't
+needed since the API above works.
 
 ---
 
@@ -716,10 +758,10 @@ redirects to `/admin/users`) rather than as separate unlinked pages.
 (09:00 PKT — matches the `weekly_reports` cadence in Section 8.8) via `vercel.json`'s
 `crons` config. Authenticated by `CRON_SECRET` (a Vercel Cron job has no logged-in user, so
 this doesn't go through `getCurrentProfile()` like every other sync route). Runs the same
-GSC sync (`lib/gsc/sync.ts`), competitor Ahrefs sync (`lib/ahrefs/competitorSync.ts`), and
-GA4 sync (`lib/ga4/sync.ts`) logic the manual buttons use, then additionally writes one
-`competitor_snapshots` row per active competitor. Logs to `sync_logs` with
-`source: 'weekly-cron'` and `triggered_by: null`.
+GSC sync (`lib/gsc/sync.ts`), competitor Ahrefs sync (`lib/ahrefs/competitorSync.ts`), GA4
+sync (`lib/ga4/sync.ts`), and Clarity sync (`lib/clarity/sync.ts`) logic the manual buttons
+use, then additionally writes one `competitor_snapshots` row per active competitor. Logs to
+`sync_logs` with `source: 'weekly-cron'` and `triggered_by: null`.
 
 ---
 
@@ -1124,6 +1166,10 @@ a few things worth knowing before calling this done:
   competitor comparison bars, using Recharts and the validated categorical palette.
 - GA4 integration (Section 7.3) — service-account auth reused from GSC, "Website Analytics
   (GA4)" card on `/dashboard`, manual sync button, and included in the weekly cron.
+- Microsoft Clarity integration (Section 7.4) — "Content Performance (Clarity)" card on
+  `/dashboard`, with a bot-traffic warning banner (96% of live sessions were bot-flagged at
+  time of testing). API access confirmed working; the originally-documented base URL was
+  wrong (corrected in Section 7.4), same class of issue as the earlier GSC `/v1` mistake.
 
 **Known gaps (not yet built):**
 - Task detail slide-in panel's full activity log (Section 8.3) — `tasks.updated_by` (added
@@ -1131,8 +1177,7 @@ a few things worth knowing before calling this done:
 - Daily overdue auto-update (Section 9.2) — no cron/scheduled function exists; "overdue" is
   computed live in the UI filter, never persisted to `tasks.status`.
 - Scorecard's "Actions A1–A22 completed on time" toggle and PDF/CSV export (Section 8.4).
-- Weekly report (`/weekly-report`) and Microsoft Clarity — both confirmed v2, no code exists
-  for either, as intended.
+- Weekly report (`/weekly-report`) — confirmed v2, no code exists yet.
 - A permission bug reported for task status editing (owners editing others' tasks) could not
   be reproduced against the current code or live data as of this session — the PATCH route
   and RLS both correctly scope `owner`-role edits to tasks the user is `assigned_to`/

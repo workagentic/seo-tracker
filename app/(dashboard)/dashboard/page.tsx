@@ -2,11 +2,13 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { getLatestSnapshot, getAllSnapshots } from '@/lib/metrics'
 import { getLatestGa4Snapshot } from '@/lib/ga4-snapshots'
+import { getLatestClaritySnapshot } from '@/lib/clarity-snapshots'
 import { getQuarterlyTargets } from '@/lib/targets'
 import { getCurrentQuarter } from '@/lib/constants'
 import { StatTile } from '@/components/dashboard/stat-tile'
 import { SyncButton } from '@/components/dashboard/sync-button'
 import { Ga4Panel } from '@/components/dashboard/ga4-panel'
+import { ClarityPanel } from '@/components/dashboard/clarity-panel'
 import { TrafficTrendChart, type TrafficTrendPoint } from '@/components/dashboard/charts/traffic-trend-chart'
 import { DomainRatingChart, type DrPoint } from '@/components/dashboard/charts/domain-rating-chart'
 import { KeywordsDistributionChart } from '@/components/dashboard/charts/keywords-distribution-chart'
@@ -19,12 +21,13 @@ const decimal = (n: number) => n.toFixed(1)
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
   const profile = await getCurrentProfile()
-  const [snapshot, allSnapshots, allTargets, { data: competitorsData }, ga4Snapshot] = await Promise.all([
+  const [snapshot, allSnapshots, allTargets, { data: competitorsData }, ga4Snapshot, claritySnapshot] = await Promise.all([
     getLatestSnapshot(supabase),
     getAllSnapshots(supabase),
     getQuarterlyTargets(supabase),
     supabase.from('competitors').select('*').eq('is_active', true),
     getLatestGa4Snapshot(supabase),
+    getLatestClaritySnapshot(supabase),
   ])
   const quarter = getCurrentQuarter(new Date())
   const targets = allTargets[quarter] ?? allTargets.Q1
@@ -113,6 +116,14 @@ export default async function DashboardPage() {
           {canSync && <SyncButton endpoint="/api/sync/ga4" label="Sync GA4" />}
         </div>
         <Ga4Panel snapshot={ga4Snapshot} />
+      </div>
+
+      <div className="rounded-md border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-foreground">Content Performance (Clarity)</h2>
+          {canSync && <SyncButton endpoint="/api/sync/clarity" label="Sync Clarity" />}
+        </div>
+        <ClarityPanel snapshot={claritySnapshot} />
       </div>
     </div>
   )

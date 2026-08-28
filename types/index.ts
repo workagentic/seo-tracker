@@ -89,6 +89,26 @@ export interface Ga4Snapshot {
   created_at: string
 }
 
+export interface ClarityTopPageEntry {
+  url: string
+  visits: number
+}
+
+export interface ClaritySnapshot {
+  id: string
+  snapshot_date: string
+  total_sessions: number | null
+  bot_sessions: number | null
+  distinct_users: number | null
+  dead_click_count: number | null
+  rage_click_count: number | null
+  script_error_count: number | null
+  avg_scroll_depth: number | null
+  top_pages: ClarityTopPageEntry[] | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface CompetitorSnapshot {
   id: string
   competitor_id: string

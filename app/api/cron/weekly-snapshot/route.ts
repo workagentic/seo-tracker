@@ -3,6 +3,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { runGscSync } from '@/lib/gsc/sync'
 import { runCompetitorSync } from '@/lib/ahrefs/competitorSync'
 import { runGa4Sync } from '@/lib/ga4/sync'
+import { runClaritySync } from '@/lib/clarity/sync'
 import type { Competitor } from '@/types'
 
 // Vercel Cron has no logged-in user, so this route authenticates via a shared secret
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
   const gsc = await runGscSync(admin, null)
   const competitors = await runCompetitorSync(admin, null)
   const ga4 = await runGa4Sync(admin, null)
+  const clarity = await runClaritySync(admin, null)
 
   const { data: activeCompetitors } = await admin.from('competitors').select('*').eq('is_active', true)
   const today = new Date().toISOString().slice(0, 10)
@@ -40,14 +42,17 @@ export async function GET(request: Request) {
 
   const summary = `Weekly snapshot: GSC ${JSON.stringify(gsc.body)}; competitors ${JSON.stringify(
     competitors.body
-  )}; snapshotted ${snapshotted} competitor(s); GA4 ${JSON.stringify(ga4.body)}`
+  )}; snapshotted ${snapshotted} competitor(s); GA4 ${JSON.stringify(ga4.body)}; Clarity ${JSON.stringify(clarity.body)}`
 
   await admin.from('sync_logs').insert({
     source: 'weekly-cron',
-    status: gsc.status === 200 && competitors.status === 200 && ga4.status === 200 ? 'success' : 'error',
+    status:
+      gsc.status === 200 && competitors.status === 200 && ga4.status === 200 && clarity.status === 200
+        ? 'success'
+        : 'error',
     message: summary,
     triggered_by: null,
   } as never)
 
-  return NextResponse.json({ gsc: gsc.body, competitors: competitors.body, snapshotted, ga4: ga4.body })
+  return NextResponse.json({ gsc: gsc.body, competitors: competitors.body, snapshotted, ga4: ga4.body, clarity: clarity.body })
 }
