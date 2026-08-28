@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
+import { getLatestSnapshot } from '@/lib/metrics'
 import { CompetitorTable } from '@/components/competitors/competitor-table'
 import { AddCompetitorDialog } from '@/components/competitors/add-competitor-dialog'
 import { SyncCompetitorsButton } from '@/components/competitors/sync-competitors-button'
@@ -8,7 +9,10 @@ import type { Competitor } from '@/types'
 export default async function CompetitorsPage() {
   const profile = await getCurrentProfile()
   const supabase = await createServerSupabaseClient()
-  const { data } = await supabase.from('competitors').select('*').eq('is_active', true).order('domain_rating', { ascending: false, nullsFirst: false })
+  const [{ data }, eaSnapshot] = await Promise.all([
+    supabase.from('competitors').select('*').eq('is_active', true).order('domain_rating', { ascending: false, nullsFirst: false }),
+    getLatestSnapshot(supabase),
+  ])
   const canSync = profile && ['admin', 'head'].includes(profile.role)
 
   return (
@@ -20,7 +24,7 @@ export default async function CompetitorsPage() {
           {profile?.role === 'admin' && <AddCompetitorDialog />}
         </div>
       </div>
-      <CompetitorTable competitors={(data as Competitor[]) ?? []} isAdmin={profile?.role === 'admin'} />
+      <CompetitorTable competitors={(data as Competitor[]) ?? []} isAdmin={profile?.role === 'admin'} eaSnapshot={eaSnapshot} />
     </div>
   )
 }
