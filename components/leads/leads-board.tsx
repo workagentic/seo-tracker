@@ -69,6 +69,8 @@ export function LeadsBoard({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (
     })
     if (!res.ok) {
       setItems((prev) => prev.map((l) => (l.id === lead.id ? { ...l, stage: lead.stage } : l)))
+      const body = await res.json().catch(() => ({}))
+      alert(body.error ?? 'Failed to move lead')
       return
     }
     router.refresh()

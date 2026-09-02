@@ -85,6 +85,37 @@ export function LeadDetailDialog({
     setForm((f) => (f ? { ...f, [key]: value } : f))
   }
 
+  function setSourceId(value: string) {
+    const nextSource = sources.find((s) => s.id === value)
+    setForm((f) =>
+      f
+        ? {
+            ...f,
+            source_id: value || null,
+            submission_from: nextSource?.requires_submission_from ? f.submission_from : null,
+          }
+        : f
+    )
+  }
+
+  async function handleDelete() {
+    if (!lead) return
+    if (!confirm(`Delete lead "${lead.full_name}"? This cannot be undone.`)) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        alert(body.error ?? 'Failed to delete lead')
+        return
+      }
+      onClose()
+      router.refresh()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleSave() {
     if (!lead || !form) return
     setSubmitting(true)
@@ -156,32 +187,33 @@ export function LeadDetailDialog({
             <h3 className="text-sm font-semibold text-foreground">New Lead</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={form.lead_date} onChange={(e) => set('lead_date', e.target.value)} />
+                <Label htmlFor="detail_lead_date">Date</Label>
+                <Input id="detail_lead_date" type="date" value={form.lead_date} onChange={(e) => set('lead_date', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Full name</Label>
-                <Input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Company</Label>
-                <Input value={form.company_name ?? ''} onChange={(e) => set('company_name', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Email</Label>
-                <Input value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} />
+                <Label htmlFor="detail_full_name">Full name</Label>
+                <Input id="detail_full_name" value={form.full_name} onChange={(e) => set('full_name', e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Phone</Label>
-                <Input value={form.phone_number ?? ''} onChange={(e) => set('phone_number', e.target.value)} />
+                <Label htmlFor="detail_company_name">Company</Label>
+                <Input id="detail_company_name" value={form.company_name ?? ''} onChange={(e) => set('company_name', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Revenue</Label>
+                <Label htmlFor="detail_email">Email</Label>
+                <Input id="detail_email" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="detail_phone_number">Phone</Label>
+                <Input id="detail_phone_number" value={form.phone_number ?? ''} onChange={(e) => set('phone_number', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="detail_revenue">Revenue</Label>
                 <Input
+                  id="detail_revenue"
                   type="number"
                   value={form.revenue ?? ''}
                   onChange={(e) => set('revenue', e.target.value === '' ? null : Number(e.target.value))}
@@ -189,13 +221,14 @@ export function LeadDetailDialog({
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Service needed</Label>
-              <Input value={form.service_needed ?? ''} onChange={(e) => set('service_needed', e.target.value)} />
+              <Label htmlFor="detail_service_needed">Service needed</Label>
+              <Input id="detail_service_needed" value={form.service_needed ?? ''} onChange={(e) => set('service_needed', e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Brand</Label>
+                <Label htmlFor="detail_brand">Brand</Label>
                 <select
+                  id="detail_brand"
                   value={form.brand ?? ''}
                   onChange={(e) => set('brand', e.target.value as LeadBrand)}
                   className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
@@ -205,16 +238,17 @@ export function LeadDetailDialog({
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>Employee size</Label>
-                <Input value={form.employee_size ?? ''} onChange={(e) => set('employee_size', e.target.value)} />
+                <Label htmlFor="detail_employee_size">Employee size</Label>
+                <Input id="detail_employee_size" value={form.employee_size ?? ''} onChange={(e) => set('employee_size', e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Source</Label>
+                <Label htmlFor="detail_source_id">Source</Label>
                 <select
+                  id="detail_source_id"
                   value={form.source_id ?? ''}
-                  onChange={(e) => set('source_id', e.target.value || null)}
+                  onChange={(e) => setSourceId(e.target.value)}
                   className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                 >
                   <option value="">—</option>
@@ -222,14 +256,15 @@ export function LeadDetailDialog({
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>Point of contact</Label>
-                <Input value={form.point_of_contact ?? ''} onChange={(e) => set('point_of_contact', e.target.value)} />
+                <Label htmlFor="detail_point_of_contact">Point of contact</Label>
+                <Input id="detail_point_of_contact" value={form.point_of_contact ?? ''} onChange={(e) => set('point_of_contact', e.target.value)} />
               </div>
             </div>
             {selectedSource?.requires_submission_from && (
               <div className="space-y-1">
-                <Label>Submission from</Label>
+                <Label htmlFor="detail_submission_from">Submission from</Label>
                 <select
+                  id="detail_submission_from"
                   value={form.submission_from ?? ''}
                   onChange={(e) => set('submission_from', e.target.value as LeadSubmissionFrom)}
                   className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
@@ -246,12 +281,13 @@ export function LeadDetailDialog({
               <h3 className="text-sm font-semibold text-foreground">Introductory Call</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Date</Label>
-                  <Input type="date" value={form.intro_call_date ?? ''} onChange={(e) => set('intro_call_date', e.target.value)} />
+                  <Label htmlFor="intro_call_date">Date</Label>
+                  <Input id="intro_call_date" type="date" value={form.intro_call_date ?? ''} onChange={(e) => set('intro_call_date', e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Status</Label>
+                  <Label htmlFor="intro_call_status">Status</Label>
                   <select
+                    id="intro_call_status"
                     value={form.intro_call_status ?? ''}
                     onChange={(e) => set('intro_call_status', e.target.value as 'conducted' | 'pending')}
                     className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
@@ -263,16 +299,16 @@ export function LeadDetailDialog({
                 </div>
               </div>
               <div className="space-y-1">
-                <Label>Meeting minutes</Label>
-                <Textarea value={form.intro_call_meeting_minutes ?? ''} onChange={(e) => set('intro_call_meeting_minutes', e.target.value)} />
+                <Label htmlFor="intro_call_meeting_minutes">Meeting minutes</Label>
+                <Textarea id="intro_call_meeting_minutes" value={form.intro_call_meeting_minutes ?? ''} onChange={(e) => set('intro_call_meeting_minutes', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Email sent</Label>
-                <Textarea value={form.intro_call_email_sent ?? ''} onChange={(e) => set('intro_call_email_sent', e.target.value)} />
+                <Label htmlFor="intro_call_email_sent">Email sent</Label>
+                <Textarea id="intro_call_email_sent" value={form.intro_call_email_sent ?? ''} onChange={(e) => set('intro_call_email_sent', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>1st follow-up scheduled date</Label>
-                <Input type="date" value={form.followup_1_scheduled_date ?? ''} onChange={(e) => set('followup_1_scheduled_date', e.target.value)} />
+                <Label htmlFor="followup_1_scheduled_date">1st follow-up scheduled date</Label>
+                <Input id="followup_1_scheduled_date" type="date" value={form.followup_1_scheduled_date ?? ''} onChange={(e) => set('followup_1_scheduled_date', e.target.value)} />
               </div>
             </section>
           )}
@@ -281,20 +317,20 @@ export function LeadDetailDialog({
             <section className="space-y-3 border-t border-border pt-4">
               <h3 className="text-sm font-semibold text-foreground">1st Follow-up</h3>
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={form.followup_1_date ?? ''} onChange={(e) => set('followup_1_date', e.target.value)} />
+                <Label htmlFor="followup_1_date">Date</Label>
+                <Input id="followup_1_date" type="date" value={form.followup_1_date ?? ''} onChange={(e) => set('followup_1_date', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea value={form.followup_1_notes ?? ''} onChange={(e) => set('followup_1_notes', e.target.value)} />
+                <Label htmlFor="followup_1_notes">Notes</Label>
+                <Textarea id="followup_1_notes" value={form.followup_1_notes ?? ''} onChange={(e) => set('followup_1_notes', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Email sent</Label>
-                <Textarea value={form.followup_1_email_sent ?? ''} onChange={(e) => set('followup_1_email_sent', e.target.value)} />
+                <Label htmlFor="followup_1_email_sent">Email sent</Label>
+                <Textarea id="followup_1_email_sent" value={form.followup_1_email_sent ?? ''} onChange={(e) => set('followup_1_email_sent', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>2nd follow-up scheduled date</Label>
-                <Input type="date" value={form.followup_2_scheduled_date ?? ''} onChange={(e) => set('followup_2_scheduled_date', e.target.value)} />
+                <Label htmlFor="followup_2_scheduled_date">2nd follow-up scheduled date</Label>
+                <Input id="followup_2_scheduled_date" type="date" value={form.followup_2_scheduled_date ?? ''} onChange={(e) => set('followup_2_scheduled_date', e.target.value)} />
               </div>
             </section>
           )}
@@ -303,20 +339,20 @@ export function LeadDetailDialog({
             <section className="space-y-3 border-t border-border pt-4">
               <h3 className="text-sm font-semibold text-foreground">2nd Follow-up</h3>
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={form.followup_2_date ?? ''} onChange={(e) => set('followup_2_date', e.target.value)} />
+                <Label htmlFor="followup_2_date">Date</Label>
+                <Input id="followup_2_date" type="date" value={form.followup_2_date ?? ''} onChange={(e) => set('followup_2_date', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea value={form.followup_2_notes ?? ''} onChange={(e) => set('followup_2_notes', e.target.value)} />
+                <Label htmlFor="followup_2_notes">Notes</Label>
+                <Textarea id="followup_2_notes" value={form.followup_2_notes ?? ''} onChange={(e) => set('followup_2_notes', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Email sent</Label>
-                <Textarea value={form.followup_2_email_sent ?? ''} onChange={(e) => set('followup_2_email_sent', e.target.value)} />
+                <Label htmlFor="followup_2_email_sent">Email sent</Label>
+                <Textarea id="followup_2_email_sent" value={form.followup_2_email_sent ?? ''} onChange={(e) => set('followup_2_email_sent', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>3rd follow-up scheduled date</Label>
-                <Input type="date" value={form.followup_3_scheduled_date ?? ''} onChange={(e) => set('followup_3_scheduled_date', e.target.value)} />
+                <Label htmlFor="followup_3_scheduled_date">3rd follow-up scheduled date</Label>
+                <Input id="followup_3_scheduled_date" type="date" value={form.followup_3_scheduled_date ?? ''} onChange={(e) => set('followup_3_scheduled_date', e.target.value)} />
               </div>
             </section>
           )}
@@ -325,16 +361,16 @@ export function LeadDetailDialog({
             <section className="space-y-3 border-t border-border pt-4">
               <h3 className="text-sm font-semibold text-foreground">3rd Follow-up</h3>
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={form.followup_3_date ?? ''} onChange={(e) => set('followup_3_date', e.target.value)} />
+                <Label htmlFor="followup_3_date">Date</Label>
+                <Input id="followup_3_date" type="date" value={form.followup_3_date ?? ''} onChange={(e) => set('followup_3_date', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea value={form.followup_3_notes ?? ''} onChange={(e) => set('followup_3_notes', e.target.value)} />
+                <Label htmlFor="followup_3_notes">Notes</Label>
+                <Textarea id="followup_3_notes" value={form.followup_3_notes ?? ''} onChange={(e) => set('followup_3_notes', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Email sent</Label>
-                <Textarea value={form.followup_3_email_sent ?? ''} onChange={(e) => set('followup_3_email_sent', e.target.value)} />
+                <Label htmlFor="followup_3_email_sent">Email sent</Label>
+                <Textarea id="followup_3_email_sent" value={form.followup_3_email_sent ?? ''} onChange={(e) => set('followup_3_email_sent', e.target.value)} />
               </div>
             </section>
           )}
@@ -344,12 +380,13 @@ export function LeadDetailDialog({
               <h3 className="text-sm font-semibold text-foreground">Won</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Date</Label>
-                  <Input type="date" value={form.won_date ?? ''} onChange={(e) => set('won_date', e.target.value)} />
+                  <Label htmlFor="won_date">Date</Label>
+                  <Input id="won_date" type="date" value={form.won_date ?? ''} onChange={(e) => set('won_date', e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Conversion value</Label>
+                  <Label htmlFor="conversion_value">Conversion value</Label>
                   <Input
+                    id="conversion_value"
                     type="number"
                     value={form.conversion_value ?? ''}
                     onChange={(e) => set('conversion_value', e.target.value === '' ? null : Number(e.target.value))}
@@ -357,8 +394,8 @@ export function LeadDetailDialog({
                 </div>
               </div>
               <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea value={form.won_notes ?? ''} onChange={(e) => set('won_notes', e.target.value)} />
+                <Label htmlFor="won_notes">Notes</Label>
+                <Textarea id="won_notes" value={form.won_notes ?? ''} onChange={(e) => set('won_notes', e.target.value)} />
               </div>
             </section>
           )}
@@ -367,17 +404,20 @@ export function LeadDetailDialog({
             <section className="space-y-3 border-t border-border pt-4">
               <h3 className="text-sm font-semibold text-foreground">Lost</h3>
               <div className="space-y-1">
-                <Label>Date</Label>
-                <Input type="date" value={form.lost_date ?? ''} onChange={(e) => set('lost_date', e.target.value)} />
+                <Label htmlFor="lost_date">Date</Label>
+                <Input id="lost_date" type="date" value={form.lost_date ?? ''} onChange={(e) => set('lost_date', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Notes</Label>
-                <Textarea value={form.lost_notes ?? ''} onChange={(e) => set('lost_notes', e.target.value)} />
+                <Label htmlFor="lost_notes">Notes</Label>
+                <Textarea id="lost_notes" value={form.lost_notes ?? ''} onChange={(e) => set('lost_notes', e.target.value)} />
               </div>
             </section>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="destructive" disabled={submitting} onClick={handleDelete}>
+            Delete
+          </Button>
           <Button disabled={submitting || !form.lead_date || !form.full_name} onClick={handleSave}>
             {submitting ? 'Saving…' : 'Save'}
           </Button>
