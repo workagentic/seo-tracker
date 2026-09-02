@@ -415,6 +415,12 @@ create table task_comments (
 );
 ```
 
+### 5.17 `lead_sources` / `leads`
+Added `0022_leads.sql`. Admin-only (`role = 'admin'` exactly, not `head`) throughout — RLS,
+API routes, and a `middleware.ts` route guard on `/leads`, unlike the rest of this app where
+`admin`/`head` are treated equivalently. See Section 8.10 and
+`docs/superpowers/specs/2026-09-02-leads-kanban-design.md`.
+
 ---
 
 ## 6. Environment Variables
@@ -928,6 +934,20 @@ GSC sync (`lib/gsc/sync.ts`), competitor Ahrefs sync (`lib/ahrefs/competitorSync
 sync (`lib/ga4/sync.ts`), and Clarity sync (`lib/clarity/sync.ts`) logic the manual buttons
 use, then additionally writes one `competitor_snapshots` row per active competitor. Logs to
 `sync_logs` with `source: 'weekly-cron'` and `triggered_by: null`.
+
+---
+
+### 8.10 Leads (`/leads`) — admin only
+A 7-column Kanban board (New Lead → Introductory Call → 1st/2nd/3rd Follow-up → Won/Lost) for
+the sales pipeline, unrelated to the SEO task tracker. True drag-and-drop via `@dnd-kit`
+(`components/leads/leads-board.tsx`) — dragging a card just changes `stage`; all other
+per-stage fields are edited via `LeadDetailDialog`, which shows sections for every stage up to
+and including the lead's current one (`lib/leads.ts`'s `getVisibleStages`, unit-tested).
+Lead sources are admin-editable from `/admin/lead-sources` — each source has a
+`requires_submission_from` flag (not a hardcoded "Direct or SEO" check) driving whether the
+Submission From field shows on a lead. Filters: date range (on `lead_date`), Brand, Source, as
+URL params, matching `TaskFilters`. Out of scope for this pass: no notifications, no
+Realtime/live-sync wiring, no CSV import/export (spec Section 8).
 
 ---
 
@@ -1447,6 +1467,9 @@ Abdullah (2 Sep 2026).** If updates still aren't appearing without a refresh, do
 Realtime toggle is on for the project in the Supabase dashboard under Database → Replication
 — the migration adds tables to the publication, but that's separate from the project-level
 Realtime enable switch.
+
+- **2 Sep 2026:** Leads List (Kanban) — new admin-only feature, unrelated to the SEO task
+  tracker. See Section 8.10 and `docs/superpowers/specs/2026-09-02-leads-kanban-design.md`.
 
 **Known gaps (not yet built):**
 - Task detail slide-in panel (Section 8.3) — not built as a dedicated panel; its fields are
