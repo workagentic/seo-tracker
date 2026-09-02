@@ -168,3 +168,9 @@ insert into tracked_keywords (keyword, priority, category, target_url, monthly_v
 ('amazon accounting', 'medium', 'striking-distance', '/amazon-accounting/', 590, 19, 5.90),
 ('trade promotions management', 'medium', 'striking-distance', '/trade-promotions-management/', 320, 25, 9.80),
 ('inventory management services', 'medium', 'striking-distance', '/inventory-management-services/', 1100, 30, 6.60);
+
+insert into lead_sources (name, requires_submission_from) values
+  ('Direct', true),
+  ('SEO', true),
+  ('LinkedIn', false),
+  ('Upwork', false);

@@ -289,3 +289,65 @@ export interface QuarterTarget {
   avg_keywords_per_page: number
   indexed_content_pages: number
 }
+
+export type LeadStage =
+  | 'new_lead'
+  | 'introductory_call'
+  | 'followup_1'
+  | 'followup_2'
+  | 'followup_3'
+  | 'won'
+  | 'lost'
+export type LeadBrand = 'workagentic' | 'expertise_accelerated'
+export type LeadSubmissionFrom = 'book_a_consultation' | 'contact_form' | 'chat'
+
+export interface LeadSource {
+  id: string
+  name: string
+  requires_submission_from: boolean
+  is_active: boolean
+  created_at: string
+}
+
+export interface Lead {
+  id: string
+  stage: LeadStage
+  lead_date: string
+  full_name: string
+  company_name: string | null
+  email: string | null
+  phone_number: string | null
+  revenue: number | null
+  service_needed: string | null
+  brand: LeadBrand | null
+  employee_size: string | null
+  source_id: string | null
+  point_of_contact: string | null
+  submission_from: LeadSubmissionFrom | null
+  intro_call_date: string | null
+  intro_call_status: 'conducted' | 'pending' | null
+  intro_call_meeting_minutes: string | null
+  intro_call_email_sent: string | null
+  followup_1_scheduled_date: string | null
+  followup_1_date: string | null
+  followup_1_notes: string | null
+  followup_1_email_sent: string | null
+  followup_2_scheduled_date: string | null
+  followup_2_date: string | null
+  followup_2_notes: string | null
+  followup_2_email_sent: string | null
+  followup_3_scheduled_date: string | null
+  followup_3_date: string | null
+  followup_3_notes: string | null
+  followup_3_email_sent: string | null
+  won_date: string | null
+  won_notes: string | null
+  conversion_value: number | null
+  lost_date: string | null
+  lost_notes: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+  source?: Pick<LeadSource, 'id' | 'name' | 'requires_submission_from'> | null
+}
