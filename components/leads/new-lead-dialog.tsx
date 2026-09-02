@@ -41,6 +41,15 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  function setSourceId(value: string) {
+    const nextSource = sources.find((s) => s.id === value)
+    setForm((f) => ({
+      ...f,
+      source_id: value,
+      submission_from: nextSource?.requires_submission_from ? f.submission_from : '',
+    }))
+  }
+
   const selectedSource = sources.find((s) => s.id === form.source_id)
 
   async function handleSubmit() {
@@ -134,7 +143,7 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
               <select
                 id="source_id"
                 value={form.source_id}
-                onChange={(e) => set('source_id', e.target.value)}
+                onChange={(e) => setSourceId(e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
               >
                 <option value="">—</option>

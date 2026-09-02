@@ -922,6 +922,7 @@ Accessible only to `admin` role (Abdullah Shekha).
 - `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh, GA4 sync, and Clarity sync are all also implemented, but all three trigger elsewhere: GSC's button is on `/keywords` (Section 8.6), GA4's and Clarity's are on `/dashboard` (Section 8.2).
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
 - `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID (both now actually used — Section 7.2/7.3). **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
+- `/admin/lead-sources` — Manages the extensible lead-source list used by the Leads Kanban board (Section 8.10): add a source, deactivate one, and toggle whether it requires the Submission From field. **Implemented.**
 
 Admin sub-pages render as tabs under a shared `app/(dashboard)/admin/layout.tsx` (`/admin`
 redirects to `/admin/users`) rather than as separate unlinked pages.
