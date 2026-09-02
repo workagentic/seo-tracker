@@ -8,16 +8,34 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { getVisibleStages } from '@/lib/leads'
-import type { Lead, LeadStage } from '@/types'
+import type { Lead, LeadBrand, LeadSource, LeadStage, LeadSubmissionFrom } from '@/types'
 
 type FormState = Omit<Lead, 'id' | 'created_by' | 'updated_by' | 'created_at' | 'updated_at' | 'source'>
+
+const BRANDS: { value: LeadBrand; label: string }[] = [
+  { value: 'workagentic', label: 'WorkAgentic' },
+  { value: 'expertise_accelerated', label: 'Expertise Accelerated' },
+]
+const SUBMISSION_OPTIONS: { value: LeadSubmissionFrom; label: string }[] = [
+  { value: 'book_a_consultation', label: 'Book A Consultation' },
+  { value: 'contact_form', label: 'Contact Form' },
+  { value: 'chat', label: 'Chat' },
+]
 
 function toFormState(lead: Lead): FormState {
   const { id: _id, created_by: _cb, updated_by: _ub, created_at: _ca, updated_at: _ua, source: _s, ...rest } = lead
   return rest
 }
 
-export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
+export function LeadDetailDialog({
+  lead,
+  sources,
+  onClose,
+}: {
+  lead: Lead | null
+  sources: LeadSource[]
+  onClose: () => void
+}) {
   const [form, setForm] = useState<FormState | null>(lead ? toFormState(lead) : null)
   const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
@@ -34,10 +52,46 @@ export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose
     if (!lead || !form) return
     setSubmitting(true)
     try {
+      const payload = {
+        stage: form.stage,
+        lead_date: form.lead_date,
+        full_name: form.full_name,
+        company_name: form.company_name || null,
+        email: form.email || null,
+        phone_number: form.phone_number || null,
+        revenue: form.revenue,
+        service_needed: form.service_needed || null,
+        brand: form.brand || null,
+        employee_size: form.employee_size || null,
+        source_id: form.source_id || null,
+        point_of_contact: form.point_of_contact || null,
+        submission_from: form.submission_from || null,
+        intro_call_date: form.intro_call_date || null,
+        intro_call_status: form.intro_call_status || null,
+        intro_call_meeting_minutes: form.intro_call_meeting_minutes || null,
+        intro_call_email_sent: form.intro_call_email_sent || null,
+        followup_1_scheduled_date: form.followup_1_scheduled_date || null,
+        followup_1_date: form.followup_1_date || null,
+        followup_1_notes: form.followup_1_notes || null,
+        followup_1_email_sent: form.followup_1_email_sent || null,
+        followup_2_scheduled_date: form.followup_2_scheduled_date || null,
+        followup_2_date: form.followup_2_date || null,
+        followup_2_notes: form.followup_2_notes || null,
+        followup_2_email_sent: form.followup_2_email_sent || null,
+        followup_3_scheduled_date: form.followup_3_scheduled_date || null,
+        followup_3_date: form.followup_3_date || null,
+        followup_3_notes: form.followup_3_notes || null,
+        followup_3_email_sent: form.followup_3_email_sent || null,
+        won_date: form.won_date || null,
+        won_notes: form.won_notes || null,
+        conversion_value: form.conversion_value,
+        lost_date: form.lost_date || null,
+        lost_notes: form.lost_notes || null,
+      }
       const res = await fetch(`/api/leads/${lead.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -54,6 +108,7 @@ export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose
   if (!lead || !form) return null
   const visibleStages = getVisibleStages(form.stage)
   const shows = (stage: LeadStage) => visibleStages.includes(stage)
+  const selectedSource = sources.find((s) => s.id === form.source_id)
 
   return (
     <Dialog open={!!lead} onOpenChange={(next) => !next && onClose()}>
@@ -89,13 +144,64 @@ export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose
               </div>
               <div className="space-y-1">
                 <Label>Revenue</Label>
-                <Input type="number" value={form.revenue ?? ''} onChange={(e) => set('revenue', Number(e.target.value))} />
+                <Input
+                  type="number"
+                  value={form.revenue ?? ''}
+                  onChange={(e) => set('revenue', e.target.value === '' ? null : Number(e.target.value))}
+                />
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Point of contact</Label>
-              <Input value={form.point_of_contact ?? ''} onChange={(e) => set('point_of_contact', e.target.value)} />
+              <Label>Service needed</Label>
+              <Input value={form.service_needed ?? ''} onChange={(e) => set('service_needed', e.target.value)} />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Brand</Label>
+                <select
+                  value={form.brand ?? ''}
+                  onChange={(e) => set('brand', e.target.value as LeadBrand)}
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                >
+                  <option value="">—</option>
+                  {BRANDS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Employee size</Label>
+                <Input value={form.employee_size ?? ''} onChange={(e) => set('employee_size', e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Source</Label>
+                <select
+                  value={form.source_id ?? ''}
+                  onChange={(e) => set('source_id', e.target.value || null)}
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                >
+                  <option value="">—</option>
+                  {sources.filter((s) => s.is_active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Point of contact</Label>
+                <Input value={form.point_of_contact ?? ''} onChange={(e) => set('point_of_contact', e.target.value)} />
+              </div>
+            </div>
+            {selectedSource?.requires_submission_from && (
+              <div className="space-y-1">
+                <Label>Submission from</Label>
+                <select
+                  value={form.submission_from ?? ''}
+                  onChange={(e) => set('submission_from', e.target.value as LeadSubmissionFrom)}
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                >
+                  <option value="">—</option>
+                  {SUBMISSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            )}
           </section>
 
           {shows('introductory_call') && (
@@ -206,7 +312,11 @@ export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose
                 </div>
                 <div className="space-y-1">
                   <Label>Conversion value</Label>
-                  <Input type="number" value={form.conversion_value ?? ''} onChange={(e) => set('conversion_value', Number(e.target.value))} />
+                  <Input
+                    type="number"
+                    value={form.conversion_value ?? ''}
+                    onChange={(e) => set('conversion_value', e.target.value === '' ? null : Number(e.target.value))}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
@@ -231,7 +341,9 @@ export function LeadDetailDialog({ lead, onClose }: { lead: Lead | null; onClose
           )}
         </div>
         <DialogFooter>
-          <Button disabled={submitting} onClick={handleSave}>{submitting ? 'Saving…' : 'Save'}</Button>
+          <Button disabled={submitting || !form.lead_date || !form.full_name} onClick={handleSave}>
+            {submitting ? 'Saving…' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

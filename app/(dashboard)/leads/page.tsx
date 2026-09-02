@@ -37,7 +37,7 @@ export default async function LeadsPage({
         <NewLeadDialog sources={(sources as LeadSource[]) ?? []} />
       </div>
       <LeadsFilters sources={(sources as LeadSource[]) ?? []} />
-      <LeadsPageClient leads={(leads as Lead[]) ?? []} />
+      <LeadsPageClient leads={(leads as Lead[]) ?? []} sources={(sources as LeadSource[]) ?? []} />
     </div>
   )
 }
