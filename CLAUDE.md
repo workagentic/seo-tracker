@@ -1472,6 +1472,166 @@ Realtime enable switch.
 - **2 Sep 2026:** Leads List (Kanban) — new admin-only feature, unrelated to the SEO task
   tracker. See Section 8.10 and `docs/superpowers/specs/2026-09-02-leads-kanban-design.md`.
 
+**Session paused 2 Sep 2026 (evening) — resume here next session. Nothing in this section is
+implemented yet — planning/clarification only, all decisions below were confirmed with
+Abdullah and are load-bearing (do not re-derive or guess differently).** This is a large body
+of work — comparable to or larger than the entire Leads Kanban build — decomposed into 7
+ordered phases, each to get its own design review (and likely its own spec + SDD-worktree
+execution cycle, matching how Leads was built) before implementation starts:
+
+**Phase 0 — Leads bug fixes (small, independent, do first):**
+- Delete-lead UI button (the `DELETE /api/leads/[id]` route already exists, just no button)
+- `htmlFor`/`id` pairing on `lead-detail-dialog.tsx`'s form labels (screen-reader gap)
+- Failed drag-and-drop PATCH currently reverts silently — add an error message
+- `lead-detail-dialog.tsx`'s `source_id` field doesn't clear a stale `submission_from` when
+  switching to a source that doesn't require it (mirrors an already-fixed bug in
+  `new-lead-dialog.tsx` — apply the same fix, `setSourceId` helper pattern)
+
+**Phase 1 — Quarter boundaries overhaul ("most critical" per Abdullah):**
+- Switch from "programme quarters" (counted up from kickoff) to **standard calendar quarters**
+  that repeat every year: Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec — computed
+  generically for any date, not a fixed hardcoded boundary list (`QUARTER_BOUNDARIES` in
+  `lib/constants.ts` needs to become a formula, not an array Haroon manually extends).
+  New concrete boundaries: **Q3 2026** = 24 Aug – 30 Sep 2026 (today's stub period),
+  **Q4 2026** = 1 Oct – 31 Dec 2026, **Q1 2027** = 1 Jan – 31 Mar 2027, **Q2 2027** = 1 Apr –
+  30 Jun 2027, **Q3 2027** = 1 Jul – 30 Sep 2027.
+- `QUARTERLY_TARGETS`/`quarterly_targets` table: straight 1:1 relabel of existing numbers —
+  today's Q1 → Q3-2026, Q2 → Q4-2026, Q3 → Q1-2027, Q4 → Q2-2027, Q5 → Q3-2027. Same target
+  numbers, same order, just relabeled. Needs a **year column** added to `quarterly_targets`
+  since "Q3" now legitimately occurs twice (2026 and 2027) with different targets.
+- All 92 currently-imported tasks have `quarter = 'Q1'` — becomes `quarter = 'Q3'` (2026) under
+  the new labels (straight relabel, not a re-derivation).
+- Every place displaying/reading a quarter label needs updating: dashboard header countdown,
+  scorecard quarter selector, weekly report, `getCurrentQuarter()`.
+
+**Phase 2 — Task ownership/workflow model rebuild (foundational for Phase 3, itself as large
+as the whole Leads project):**
+- **Remove Co-Owner entirely.** Existing `co_assigned_to` data seeds the initial new
+  "Assigned To" value on migration (see below) — not just dropped.
+- **Remove Approver entirely** — the whole approval workflow built 1 Sep 2026 (Section 8.3):
+  `approver_id`, the `submitted_for_review`/`changes_requested` statuses, the Approve/
+  Request-changes actions, and the two related notification types. Fully replaced by the new
+  model below.
+- **New two-tier ownership model:**
+  - **Owner** (renames/redefines today's "Assigned to" field) — the person permanently
+    accountable for a task's outcome. Can now ONLY be one of exactly 3 people: **Tabish
+    Khalid, Syed Ali, Najma Furqan**. (This is the task-level field, NOT `profiles.role` —
+    role stays as-is for everyone.)
+  - **Assigned To** (new field) — whoever is currently doing the hands-on work. Selectable
+    from literally every profile, including `leadership`-role people (Adeela, Haroon) — being
+    Assigned To grants that person edit rights on that task (status/notes/reassignment)
+    specifically, the same kind of carve-out the approver role had, even though `leadership`
+    stays read-only everywhere else in the app. A dropdown of all staff plus a "Myself"
+    convenience option (auto-resolves to the logged-in user).
+  - Real-world flow (Abdullah's example): Tabish (owner) creates a task, assigns to Talha
+    with a deadline for SEO research; Talha assigns to Najma for content writing; Najma
+    assigns to Lavi (or keeps it herself) with her own deadline; Lavi assigns to Adeela for
+    review; Adeela assigns back to Najma; Najma might route back to Tabish, who assigns to
+    Hameed (Designer) then Usman (Web Developer). Each handoff should log to the existing
+    `task_activity` mechanism (extend it to cover the new fields), same as every other
+    tracked field change today.
+  - Tasks must show for BOTH the Owner and the current Assigned-To person (not just the
+    owner) when either of them is filtering/viewing "my tasks".
+- **New `deadline` field**, distinct from the existing `due_date` — settable whenever a task
+  is reassigned. **Deadline must never be later than Due date** (validation, both client and
+  server-side).
+- **Status enum cut from 7 down to exactly 4**: `pending`, `in_progress`, `on_hold`,
+  `completed`. `overdue` stops being a stored status entirely — becomes a purely visual/
+  computed red-flag instead (see Phase 3). Existing data remap: `blocked` → `on_hold`;
+  `overdue` → whichever of `pending`/`in_progress` the task's real work state actually is (not
+  a blanket single target); `submitted_for_review` → `in_progress`; `changes_requested` →
+  `in_progress`.
+- **Only the task's Owner (one of the 3) can set status to `completed`.** Whoever currently
+  holds "Assigned To" can freely move it among `pending`/`in_progress`/`on_hold` themselves as
+  they work.
+- **Owner reassignment for existing tasks** (data migration, confirmed counts from
+  `supabase/seed.sql` as of 2 Sep 2026): Talha Azeem (17 tasks) → Tabish; Hameed Ishaq (9) →
+  Tabish; Lavi Shamoon (6) → Najma; **Usman Ali (9, not originally mentioned by Abdullah but
+  confirmed) → Tabish** too, same pattern as Talha/Hameed. Tabish (27), Najma (5), and Syed
+  Ali (2) keep their current tasks as Owner unchanged. The person being moved off Owner
+  becomes the task's initial "Assigned To" instead (see Co-Owner note above for how the
+  starting Assigned-To value gets picked when there's also existing co-owner data).
+- **New `task_categories` table**, admin-CRUD (add/edit/delete), replacing free-text
+  `tasks.category`. Auto-seed with the 11 values already in use: Service Pages, Location
+  Pages, New Blogs, Blog Revamp, Proofreading, Publishing, Design / Images, Technical SEO,
+  Website, Links, Off-Page SEO.
+
+**Phase 3 — Task Tracker UI overhaul (depends on Phase 2's data model):**
+- **Task No** replaces the "Action" column/`action_number` (S1/L1/B1/A16-W1/etc. codes) —
+  plain sequential numbers (01, 02, 03…), **never stored**, live-computed on every view:
+  **soonest due date = 01** (most urgent = lowest number), recalculated fresh from current
+  due dates each render (naturally "updates" as due dates/deadlines change over a task's
+  life, including via reassignment).
+  - `action_number` itself: keep the underlying stored identifier or drop it? — **not yet
+    decided, resolve when designing Phase 3** (Task No is explicitly a display-only
+    computed rank, distinct from any stable stored identifier a task might still need).
+- **Slide-in detail panel from the right, 50% screen width** (this is a Phase-3-specific
+  override — Phase 3's *other* dialogs, and dialogs elsewhere in the app like Leads, get the
+  general 80%-width rule below), scrollable, replaces the separate History and Comments
+  dialogs/buttons entirely, and also absorbs Edit/Delete (no longer separate row buttons —
+  everything about a task lives in this one panel once clicked open). Layout: **Comments
+  section on top, Activity History section below.**
+  - Comments become **editable/deletable by their own author** (admin can moderate any
+    comment too) — a change from the current append-only design. Edited comments show an
+    "(edited)" mark; deleted comments leave a "[comment deleted]" placeholder rather than
+    vanishing.
+  - **@ mention support in comments** — typing `@Name` should offer autocomplete over staff,
+    and mentioning someone fires a new "you were mentioned" notification-bell type,
+    independent of the existing "new comment" notification (which still goes to owner/
+    assigned-to only).
+- Clicking a task row opens this panel (exact interaction pattern — inline accordion vs. this
+  slide-in panel — **resolved as the slide-in panel**, per Abdullah's explicit answer).
+- **Category filter becomes a dropdown** (populated from the new `task_categories` table),
+  not free text.
+- **Overview stat deck** at the top of `/tasks`: counts of Pending / In-Progress / On-Hold /
+  Completed.
+- **Red flag indicator** for any task within 3 days of its Due date (visual only, ties into
+  removing the stored `overdue` status from Phase 2).
+- **Filters persist automatically per user** (survives navigation/reload) until they explicitly
+  press "Clear Filters" — likely `localStorage`, matching this app's existing per-viewer-
+  convenience pattern (not DB-synced across devices).
+- **Remove the "All tasks" / "My tasks only" toggle.** Non-admins should just always see their
+  own tasks (Owner or Assigned-To) by default with no toggle needed; **only admins get to
+  additionally view/filter by "All owners"**.
+- **Remove the "Q1 Sprint — …" banner** entirely.
+- **All other popups app-wide (Leads create/detail dialogs, admin add/edit dialogs, etc.)
+  widen to 80% of screen width** — the general rule Abdullah gave, distinct from the
+  task-panel's own 50% spec above.
+
+**Phase 4 — Admin panel enhancements:**
+- Lead Sources: the Submission From **options themselves become admin-editable** (not the
+  current hardcoded "Book A Consultation / Contact Form / Chat" enum) — needs a new child
+  table (e.g. `lead_source_submission_options`, FK'd to `lead_sources`), and
+  `leads.submission_from` changes from a fixed `check` constraint to an FK reference.
+  Add real edit (name) and delete for Lead Sources themselves too (currently only
+  create + activate/deactivate + toggle `requires_submission_from` exist).
+- Users: add real edit (name/role/job title) and delete, admin-only. "Lock" = the existing
+  `is_active` deactivate toggle, just exposed alongside proper edit/delete (not a new
+  separate concept).
+- (`task_categories` admin CRUD UI is part of Phase 4 even though the table itself is created
+  in Phase 2.)
+
+**Phase 5 — Scorecard enhancements:**
+- "Edit Targets" restricted to **admin only** (currently broader).
+- **Accountable Owner becomes admin-editable** — `ACCOUNTABILITY_MAP` (currently a hardcoded
+  constant in `lib/constants.ts`) needs to move to a DB-backed, admin-editable table.
+- Quarter filter selection **auto-saved per user** (same persistence approach as Task Tracker
+  filters).
+- **New auto-sync for Actual/Variance** on the 12 KPIs, fixed source priority (confirmed
+  mapping): **GSC-sourced** — Organic Traffic Global/US, Organic Keywords Global/US, Keywords
+  Top 3, Keywords Top 10, Indexed Content Pages. **GA4** — none of the 12 KPIs map cleanly
+  (GA4 measures sessions/users, not organic-search rank data); stays informational-only on
+  the dashboard, not a Scorecard sync source. **Ahrefs (fallback for the rest)** — Domain
+  Rating, Traffic Value Monthly, Referring Domains Total, Avg Keywords per Page. Referring
+  Domains Quality stays manual-only (existing rule, unchanged).
+- **Sync features restricted to admins plus Najma Furqan and Tabish Khalid by name**
+  (not role-based — Najma/Tabish are `role = 'owner'`, not `admin`).
+
+**Phase 6 — Dashboard + Competitors weekly-snapshot scroll views:**
+- New scrollable feed on `/dashboard`: one card per Monday snapshot (the weekly cron already
+  captures this data), newest first, showing all 12 KPI values + week-over-week change.
+- Same pattern on `/competitors`, per competitor.
+
 **Known gaps (not yet built):**
 - Task detail slide-in panel (Section 8.3) — not built as a dedicated panel; its fields are
   already editable via `TaskFormDialog`/`TaskStatusSelect` instead.
