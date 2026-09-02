@@ -22,7 +22,7 @@ export function TaskFilters({ owners }: { owners: Pick<Profile, 'id' | 'full_nam
       </select>
       <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('quarter') ?? ''} onChange={(e) => setParam('quarter', e.target.value)}>
         <option value="">All quarters</option>
-        {['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map((q) => <option key={q} value={q}>{q}</option>)}
+        {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q} value={q}>{q}</option>)}
       </select>
       <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)}>
         <option value="">All statuses</option>

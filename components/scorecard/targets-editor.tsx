@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const QUARTER_KEYS = ['baseline', 'Q1', 'Q2', 'Q3', 'Q4', 'Q5']
-
 const METRIC_FIELDS: { key: keyof QuarterTarget; label: string }[] = [
   { key: 'domain_rating', label: 'Domain Rating' },
   { key: 'organic_traffic_global', label: 'Organic Traffic (Global)' },
@@ -82,10 +80,19 @@ function QuarterCard({ quarterKey, target }: { quarterKey: string; target: Quart
 }
 
 export function TargetsEditor({ targets }: { targets: Record<string, QuarterTarget> }) {
+  // Ordered by date rather than a hardcoded key list -- quarter keys are now year-qualified
+  // (e.g. 'Q3-2026') and extend indefinitely, so there's no fixed list to hardcode. 'baseline'
+  // has no real date to sort by; it always leads since it's the earliest state either way.
+  const ordered = Object.entries(targets).sort(([keyA, a], [keyB, b]) => {
+    if (keyA === 'baseline') return -1
+    if (keyB === 'baseline') return 1
+    return a.date.localeCompare(b.date)
+  })
+
   return (
     <div className="space-y-4">
-      {QUARTER_KEYS.filter((key) => targets[key]).map((key) => (
-        <QuarterCard key={key} quarterKey={key} target={targets[key]} />
+      {ordered.map(([key, target]) => (
+        <QuarterCard key={key} quarterKey={key} target={target} />
       ))}
     </div>
   )

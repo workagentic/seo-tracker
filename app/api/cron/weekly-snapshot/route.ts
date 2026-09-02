@@ -5,7 +5,7 @@ import { runCompetitorSync } from '@/lib/ahrefs/competitorSync'
 import { runGa4Sync } from '@/lib/ga4/sync'
 import { runClaritySync } from '@/lib/clarity/sync'
 import { generateAndSaveWeeklyReport } from '@/lib/weekly-report'
-import { getQuarterlyTargets } from '@/lib/targets'
+import { getQuarterlyTargets, resolveTarget } from '@/lib/targets'
 import { getCurrentQuarter } from '@/lib/constants'
 import type { Competitor } from '@/types'
 
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 
   const quarter = getCurrentQuarter(new Date())
   const allTargets = await getQuarterlyTargets(admin)
-  const target = allTargets[quarter] ?? allTargets.Q1
+  const target = resolveTarget(allTargets, quarter)
   await generateAndSaveWeeklyReport(admin, target, null)
 
   const summary = `Weekly snapshot: GSC ${JSON.stringify(gsc.body)}; competitors ${JSON.stringify(

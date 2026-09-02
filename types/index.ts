@@ -19,7 +19,10 @@ export type TaskStatus =
   | 'overdue'
   | 'submitted_for_review'
   | 'changes_requested'
-export type QuarterLabel = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Q5'
+// Bare calendar-quarter label, no year -- see lib/constants.ts's getCurrentQuarter() /
+// CLAUDE.md Section 14 Phase 1. Recurs every year, unlike quarterly_targets.quarter_key which
+// is year-qualified (e.g. 'Q3-2026') to disambiguate targets across years.
+export type QuarterLabel = 'Q1' | 'Q2' | 'Q3' | 'Q4'
 
 export interface Task {
   id: string

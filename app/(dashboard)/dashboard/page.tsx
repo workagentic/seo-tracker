@@ -3,7 +3,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { getLatestSnapshot, getAllSnapshots } from '@/lib/metrics'
 import { getLatestGa4Snapshot } from '@/lib/ga4-snapshots'
 import { getLatestClaritySnapshot } from '@/lib/clarity-snapshots'
-import { getQuarterlyTargets } from '@/lib/targets'
+import { getQuarterlyTargets, resolveTarget } from '@/lib/targets'
 import { getCurrentQuarter } from '@/lib/constants'
 import { StatTile } from '@/components/dashboard/stat-tile'
 import { SyncButton } from '@/components/dashboard/sync-button'
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
     getLatestClaritySnapshot(supabase),
   ])
   const quarter = getCurrentQuarter(new Date())
-  const targets = allTargets[quarter] ?? allTargets.Q1
+  const targets = resolveTarget(allTargets, quarter)
   const canSync = profile && ['admin', 'head'].includes(profile.role)
   const competitors = (competitorsData as Competitor[]) ?? []
 

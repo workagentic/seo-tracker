@@ -35,7 +35,7 @@ export default async function ScorecardPage({
               Edit Targets
             </Link>
           )}
-          <QuarterSelector current={selected} />
+          <QuarterSelector current={selected} targets={targets} />
         </div>
       </div>
       <h1 className="mb-4 hidden text-xl font-semibold text-foreground print:block">

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import type { Task } from '@/types'
 
-const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'All']
+const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'All']
 
 interface TaskFormDialogProps {
   owners: { id: string; full_name: string }[]

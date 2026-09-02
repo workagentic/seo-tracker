@@ -50,3 +50,16 @@ export async function getQuarterlyTargets(supabase: SupabaseClient): Promise<Rec
   for (const row of rows) result[row.quarter_key] = rowToTarget(row)
   return result
 }
+
+// getCurrentQuarter()'s computed key (e.g. 'Q3-2026') may have no defined target row yet --
+// the program hasn't set targets that far ahead. Falls back to the latest defined quarter
+// target (by date) rather than a hardcoded key, since calendar quarters keep recurring and
+// any fixed fallback key would eventually stop existing too. Replaces the old
+// `allTargets[quarter] ?? allTargets.Q1` pattern used at every getCurrentQuarter() call site.
+export function resolveTarget(allTargets: Record<string, QuarterTarget>, quarterKey: string): QuarterTarget {
+  if (allTargets[quarterKey]) return allTargets[quarterKey]
+  const nonBaseline = Object.entries(allTargets)
+    .filter(([key]) => key !== 'baseline')
+    .sort((a, b) => a[1].date.localeCompare(b[1].date))
+  return nonBaseline[nonBaseline.length - 1]?.[1] ?? allTargets.baseline
+}
