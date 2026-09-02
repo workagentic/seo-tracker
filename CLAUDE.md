@@ -1384,6 +1384,18 @@ a few things worth knowing before calling this done:
     ga4_snapshots, clarity_snapshots) and debounce-refreshes the current route on any change;
     the bell has its own smaller subscription (tasks, task_comments) so the unread count stays
     current even with the dropdown closed.
+- **2 Sep 2026, fix:** read/unread state reset to all-unread on page reload. Root cause:
+  `app/api/notifications/mark/route.ts`'s `.upsert()` calls omitted `ignoreDuplicates`, so they
+  compiled to `INSERT ... ON CONFLICT DO UPDATE` — Postgres requires RLS UPDATE permission to
+  even plan that statement, regardless of whether a row actually conflicts at runtime, and
+  `notification_reads` (migration 0020) only grants/policies select/insert/delete. Every
+  mark-as-read write was failing server-side; the client never checked the response, so the
+  optimistic local UI update masked it during the session, and a reload revealed the real
+  (never-written) state. Fixed by passing `ignoreDuplicates: true` (`ON CONFLICT DO NOTHING`,
+  which needs no UPDATE permission — we never need to change an existing read row, just ensure
+  it exists) — no migration needed. `NotificationBell` also now checks the response and
+  reverts the optimistic update on failure, so a future write failure is visible instead of
+  silently invisible the way this one was.
 - Task add/edit/delete (admin only, Section 8.3) and search + sortable columns on
   Tasks/Keywords/Competitors tables.
 - Dashboard charts (Section 8.2) — traffic trend, DR progression, keywords distribution,

@@ -8,12 +8,13 @@ import type { Notification } from '@/lib/notifications'
 
 type NotificationWithRead = Notification & { read: boolean }
 
-async function markRead(key: string, read: boolean) {
-  await fetch('/api/notifications/mark', {
+async function markRead(key: string, read: boolean): Promise<boolean> {
+  const res = await fetch('/api/notifications/mark', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, read }),
-  })
+  }).catch(() => null)
+  return !!res?.ok
 }
 
 export function NotificationBell() {
@@ -60,10 +61,14 @@ export function NotificationBell() {
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  function toggleRead(key: string, next: boolean, e?: React.MouseEvent) {
+  async function toggleRead(key: string, next: boolean, e?: React.MouseEvent) {
     e?.stopPropagation()
     setNotifications((prev) => prev.map((n) => (n.key === key ? { ...n, read: next } : n)))
-    markRead(key, next)
+    const ok = await markRead(key, next)
+    // The write actually failed server-side (this is exactly how the read/unread state used
+    // to silently fail to persist across a refresh) -- revert the optimistic update instead
+    // of leaving the UI showing a state that was never saved.
+    if (!ok) setNotifications((prev) => prev.map((n) => (n.key === key ? { ...n, read: !next } : n)))
   }
 
   function openNotification(n: NotificationWithRead) {
@@ -73,12 +78,14 @@ export function NotificationBell() {
   }
 
   async function markAllRead() {
+    const previous = notifications
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-    await fetch('/api/notifications/mark', {
+    const res = await fetch('/api/notifications/mark', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
-    })
+    }).catch(() => null)
+    if (!res?.ok) setNotifications(previous)
   }
 
   return (
