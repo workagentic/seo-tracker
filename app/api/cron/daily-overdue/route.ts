@@ -16,8 +16,9 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from('tasks')
     .update({ status: 'overdue', updated_at: new Date().toISOString() } as never)
-    .lt('due_date', today)
-    .in('status', ['pending', 'in_progress', 'blocked'])
+    .in('status', ['pending', 'in_progress', 'blocked', 'submitted_for_review', 'changes_requested'])
+    // next_due (recurrence, migration 0018) stands in for due_date once it's set on a task.
+    .or(`due_date.lt.${today},next_due.lt.${today}`)
     .select('id')
 
   if (error) {

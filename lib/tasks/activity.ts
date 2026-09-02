@@ -13,8 +13,15 @@ const TRACKED_FIELDS = [
   'position_responsible',
   'assigned_to',
   'co_assigned_to',
+  'approver_id',
   'due_date',
   'quarter',
+  'category',
+  'link_url',
+  'repeats',
+  'next_due',
+  'linked_finding_id',
+  'linked_keyword_id',
 ] as const
 
 type TrackedField = (typeof TRACKED_FIELDS)[number]

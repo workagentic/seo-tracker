@@ -15,11 +15,13 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'All']
 
 interface TaskFormDialogProps {
   owners: { id: string; full_name: string }[]
+  findings?: { id: string; title: string }[]
+  keywords?: { id: string; keyword: string }[]
   task?: Task
   trigger?: React.ReactElement
 }
 
-export function TaskFormDialog({ owners, task, trigger }: TaskFormDialogProps) {
+export function TaskFormDialog({ owners, findings = [], keywords = [], task, trigger }: TaskFormDialogProps) {
   const isEdit = !!task
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -29,8 +31,15 @@ export function TaskFormDialog({ owners, task, trigger }: TaskFormDialogProps) {
     description: task?.description ?? '',
     assigned_to: task?.assigned_to ?? '',
     co_assigned_to: task?.co_assigned_to ?? '',
+    approver_id: task?.approver_id ?? '',
     due_date: task?.due_date ?? '',
     quarter: task?.quarter ?? '',
+    category: task?.category ?? '',
+    link_url: task?.link_url ?? '',
+    repeats: task?.repeats ?? '',
+    next_due: task?.next_due ?? '',
+    linked_finding_id: task?.linked_finding_id ?? '',
+    linked_keyword_id: task?.linked_keyword_id ?? '',
   })
   const router = useRouter()
 
@@ -47,8 +56,15 @@ export function TaskFormDialog({ owners, task, trigger }: TaskFormDialogProps) {
         description: form.description || null,
         assigned_to: form.assigned_to || null,
         co_assigned_to: form.co_assigned_to || null,
+        approver_id: form.approver_id || null,
         due_date: form.due_date || null,
         quarter: form.quarter || null,
+        category: form.category || null,
+        link_url: form.link_url || null,
+        repeats: form.repeats || null,
+        next_due: form.next_due || null,
+        linked_finding_id: form.linked_finding_id || null,
+        linked_keyword_id: form.linked_keyword_id || null,
       }
       const res = await fetch(isEdit ? `/api/tasks/${task!.id}` : '/api/tasks', {
         method: isEdit ? 'PATCH' : 'POST',
@@ -125,9 +141,67 @@ export function TaskFormDialog({ owners, task, trigger }: TaskFormDialogProps) {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="due_date">Due date</Label>
+              <Input id="due_date" type="date" value={form.due_date ?? ''} onChange={(e) => set('due_date', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="category">Category</Label>
+              <Input id="category" value={form.category ?? ''} onChange={(e) => set('category', e.target.value)} placeholder="Service Pages" />
+            </div>
+          </div>
           <div className="space-y-1">
-            <Label htmlFor="due_date">Due date</Label>
-            <Input id="due_date" type="date" value={form.due_date ?? ''} onChange={(e) => set('due_date', e.target.value)} />
+            <Label htmlFor="approver_id">Approver</Label>
+            <select
+              id="approver_id"
+              value={form.approver_id ?? ''}
+              onChange={(e) => set('approver_id', e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">— No sign-off required —</option>
+              {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="link_url">Link to review</Label>
+            <Input id="link_url" type="url" value={form.link_url ?? ''} onChange={(e) => set('link_url', e.target.value)} placeholder="https://…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="repeats">Repeats</Label>
+              <Input id="repeats" value={form.repeats ?? ''} onChange={(e) => set('repeats', e.target.value)} placeholder="Weekly, on Friday" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="next_due">Next due</Label>
+              <Input id="next_due" type="date" value={form.next_due ?? ''} onChange={(e) => set('next_due', e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="linked_finding_id">Linked Audit finding</Label>
+              <select
+                id="linked_finding_id"
+                value={form.linked_finding_id ?? ''}
+                onChange={(e) => set('linked_finding_id', e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              >
+                <option value="">—</option>
+                {findings.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="linked_keyword_id">Linked keyword</Label>
+              <select
+                id="linked_keyword_id"
+                value={form.linked_keyword_id ?? ''}
+                onChange={(e) => set('linked_keyword_id', e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              >
+                <option value="">—</option>
+                {keywords.map((k) => <option key={k.id} value={k.id}>{k.keyword}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <DialogFooter>

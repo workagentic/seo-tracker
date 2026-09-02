@@ -1,14 +1,24 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import type { Profile, Task } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import type { Profile, Task, TaskStatus } from '@/types'
 import { TaskStatusSelect } from './task-status-select'
 import { TaskFormDialog } from './task-form-dialog'
 import { DeleteTaskButton } from './delete-task-button'
 import { TaskHistoryDialog } from './task-history-dialog'
+import { TaskCommentsDialog } from './task-comments-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
+import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
+
+const BULK_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'blocked', 'submitted_for_review', 'completed']
+
+function daysAgo(isoTimestamp: string, now: Date): number {
+  const ms = now.getTime() - new Date(isoTimestamp).getTime()
+  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)))
+}
 
 function sortValue(task: Task, key: string): unknown {
   switch (key) {
@@ -16,25 +26,79 @@ function sortValue(task: Task, key: string): unknown {
     case 'title': return task.title
     case 'owner': return task.assigned_profile?.full_name ?? null
     case 'co_owner': return task.co_assigned_profile?.full_name ?? null
-    case 'due_date': return task.due_date
+    case 'due_date': return task.next_due ?? task.due_date
     case 'status': return task.status
     default: return null
   }
+}
+
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+function exportCsv(tasks: Task[]) {
+  const headers = ['Action', 'Title', 'Category', 'Owner', 'Co-owner', 'Approver', 'Due', 'Status']
+  const rows = tasks.map((t) => [
+    t.action_number,
+    t.title,
+    t.category ?? '',
+    t.assigned_profile?.full_name ?? '',
+    t.co_assigned_profile?.full_name ?? '',
+    t.approver_profile?.full_name ?? '',
+    t.next_due ?? t.due_date ?? '',
+    t.status,
+  ])
+  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `tasks-export-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export function TaskList({
   tasks,
   currentProfile,
   owners,
+  findings = [],
+  keywords = [],
 }: {
   tasks: Task[]
   currentProfile: Profile
   owners: { id: string; full_name: string }[]
+  findings?: { id: string; title: string }[]
+  keywords?: { id: string; keyword: string }[]
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
   const isAdmin = currentProfile.role === 'admin'
+  const canBulkEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortState | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkAssignTo, setBulkAssignTo] = useState('')
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [flashId, setFlashId] = useState<string | null>(null)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const highlightId = searchParams.get('highlight')
+
+  // Clicking a notification-bell entry links here with ?highlight=<taskId> -- scroll to and
+  // briefly flash that row so it's easy to find in a long list.
+  useEffect(() => {
+    if (!highlightId) return
+    const el = document.getElementById(`task-row-${highlightId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setFlashId(highlightId)
+    const t = setTimeout(() => setFlashId(null), 2500)
+    return () => clearTimeout(t)
+  }, [highlightId])
 
   const visibleTasks = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -55,6 +119,40 @@ export function TaskList({
     setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   }
 
+  function toggleSelected(id: string) {
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = visibleTasks.length > 0 && visibleTasks.every((t) => selected.has(t.id))
+
+  async function runBulk(payload: Record<string, unknown>) {
+    setBulkBusy(true)
+    try {
+      const res = await fetch('/api/tasks/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected), ...payload }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(body.error ?? 'Bulk action failed')
+        return
+      }
+      if (body.skipped > 0) alert(`Updated ${body.updated}, skipped ${body.skipped} you're not allowed to change.`)
+      setSelected(new Set())
+      setBulkAssignTo('')
+      setBulkStatus('')
+      router.refresh()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   return (
     <div>
       <Input
@@ -63,14 +161,75 @@ export function TaskList({
         onChange={(e) => setSearch(e.target.value)}
         className="mb-3 max-w-sm"
       />
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+          <span className="font-medium text-foreground">{selected.size} selected</span>
+          {isAdmin && (
+            <>
+              <select
+                value={bulkAssignTo}
+                onChange={(e) => setBulkAssignTo(e.target.value)}
+                className="h-8 rounded border border-input bg-card px-2 text-xs"
+              >
+                <option value="">Reassign to…</option>
+                {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={bulkBusy || !bulkAssignTo}
+                onClick={() => runBulk({ action: 'reassign', assigned_to: bulkAssignTo })}
+              >
+                Apply
+              </Button>
+            </>
+          )}
+          {canBulkEdit && (
+            <>
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value)}
+                className="h-8 rounded border border-input bg-card px-2 text-xs"
+              >
+                <option value="">Set status to…</option>
+                {BULK_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={bulkBusy || !bulkStatus}
+                onClick={() => runBulk({ action: 'set_status', status: bulkStatus })}
+              >
+                Apply
+              </Button>
+            </>
+          )}
+          <Button size="sm" variant="outline" onClick={() => exportCsv(visibleTasks.filter((t) => selected.has(t.id)))}>
+            Export CSV
+          </Button>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected(new Set())}>
+            Cancel
+          </Button>
+        </div>
+      )}
       <div className="overflow-hidden rounded-md border border-border bg-card">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs font-medium uppercase text-muted-foreground">
             <tr>
+              <th className="w-8 px-4 py-2">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={(e) =>
+                    setSelected(e.target.checked ? new Set(visibleTasks.map((t) => t.id)) : new Set())
+                  }
+                />
+              </th>
               <SortableTh label="Action" sortKey="action_number" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Title" sortKey="title" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Owner" sortKey="owner" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Co-owner" sortKey="co_owner" currentSort={sort} onSort={toggleSort} />
+              <th className="px-4 py-2">Approver</th>
               <SortableTh label="Due" sortKey="due_date" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
               <th className="px-4 py-2" />
@@ -78,31 +237,93 @@ export function TaskList({
           </thead>
           <tbody className="divide-y divide-border">
             {visibleTasks.map((task) => {
-              const isOverdue = !!task.due_date && task.due_date < today && task.status !== 'completed'
-              const canEdit =
-                currentProfile.role === 'admin' ||
-                currentProfile.role === 'head' ||
-                (currentProfile.role === 'owner' &&
-                  (task.assigned_to === currentProfile.id || task.co_assigned_to === currentProfile.id))
+              const effectiveDue = task.next_due ?? task.due_date
+              const isOverdue = !!effectiveDue && effectiveDue < today && task.status !== 'completed'
+              const canEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || canEditTaskStatus(task, currentProfile)
+              const allowedStatuses = getAllowedStatuses(task, currentProfile)
+              const waitingDays = task.status === 'submitted_for_review' ? daysAgo(task.updated_at, now) : null
 
               return (
-                <tr key={task.id} className="hover:bg-muted/50">
+                <tr
+                  key={task.id}
+                  id={`task-row-${task.id}`}
+                  className={`hover:bg-muted/50 ${flashId === task.id ? 'bg-amber-100 transition-colors duration-1000' : ''}`}
+                >
+                  <td className="px-4 py-2">
+                    <input type="checkbox" checked={selected.has(task.id)} onChange={() => toggleSelected(task.id)} />
+                  </td>
                   <td className="px-4 py-2 font-mono font-medium text-foreground">{task.action_number}</td>
-                  <td className="px-4 py-2 text-foreground">{task.title}</td>
+                  <td className="px-4 py-2 text-foreground">
+                    {task.title}
+                    {task.category && (
+                      <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        {task.category}
+                      </span>
+                    )}
+                    {task.link_url && (
+                      <a
+                        href={task.link_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={task.link_url}
+                        className="ml-2 text-xs text-indigo-600 hover:underline"
+                      >
+                        🔗 link
+                      </a>
+                    )}
+                    {task.linked_finding && (
+                      <span
+                        title={task.linked_finding.title}
+                        className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+                      >
+                        ↳ {task.linked_finding.title.length > 24 ? `${task.linked_finding.title.slice(0, 24)}…` : task.linked_finding.title}
+                      </span>
+                    )}
+                    {task.linked_keyword && (
+                      <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                        ↳ {task.linked_keyword.keyword}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-muted-foreground">{task.assigned_profile?.full_name ?? '—'}</td>
                   <td className="px-4 py-2 text-muted-foreground">{task.co_assigned_profile?.full_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{task.approver_profile?.full_name ?? '—'}</td>
                   <td className={`px-4 py-2 font-mono ${isOverdue ? 'font-medium text-red-600' : 'text-muted-foreground'}`}>
-                    {task.due_date ?? 'Recurring'}
+                    {task.repeats ? `${task.repeats}${task.next_due ? ` · next ${task.next_due}` : ''}` : task.due_date ?? 'Recurring'}
                   </td>
                   <td className="px-4 py-2">
-                    <TaskStatusSelect taskId={task.id} status={task.status} disabled={!canEdit} />
+                    <div className="flex items-center gap-2">
+                      <TaskStatusSelect
+                        taskId={task.id}
+                        status={task.status}
+                        allowedStatuses={allowedStatuses}
+                        disabled={!canEdit}
+                        linkedFindingTitle={task.linked_finding?.title ?? null}
+                      />
+                      {waitingDays !== null && (
+                        <span className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          {waitingDays === 0 ? 'awaiting approval' : `${waitingDays}d awaiting approval`}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex gap-1">
                       <TaskHistoryDialog taskId={task.id} actionNumber={task.action_number} />
+                      <TaskCommentsDialog
+                        taskId={task.id}
+                        actionNumber={task.action_number}
+                        canComment={currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'}
+                      />
                       {isAdmin && (
                         <>
-                          <TaskFormDialog owners={owners} task={task} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
+                          <TaskFormDialog
+                            owners={owners}
+                            findings={findings}
+                            keywords={keywords}
+                            task={task}
+                            trigger={<Button variant="ghost" size="sm">Edit</Button>}
+                          />
                           <DeleteTaskButton taskId={task.id} actionNumber={task.action_number} />
                         </>
                       )}
@@ -113,7 +334,7 @@ export function TaskList({
             })}
             {visibleTasks.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
                   No tasks match your search.
                 </td>
               </tr>

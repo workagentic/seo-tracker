@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/lib/auth'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
+import { RealtimeRefresh } from '@/components/layout/realtime-refresh'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const profile = await getCurrentProfile()
@@ -9,6 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen min-w-[1024px] print:block print:h-auto">
+      <RealtimeRefresh />
       <div className="print:hidden">
         <Sidebar role={profile.role} />
       </div>

@@ -17,7 +17,13 @@ const SEVERITY_BORDER: Record<string, string> = {
   low: 'border-l-border',
 }
 
-export function AuditCard({ report }: { report: AuditReport }) {
+export function AuditCard({
+  report,
+  linkedTasks = [],
+}: {
+  report: AuditReport
+  linkedTasks?: { action_number: string; title: string; status: string }[]
+}) {
   return (
     <Card className={cn('border-l-4', report.severity ? SEVERITY_BORDER[report.severity] : 'border-l-border')}>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -33,6 +39,19 @@ export function AuditCard({ report }: { report: AuditReport }) {
       <CardContent className="space-y-1 text-sm">
         <p className="text-foreground">{report.finding}</p>
         {report.recommendation && <p className="text-muted-foreground">Recommendation: {report.recommendation}</p>}
+        {linkedTasks.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {linkedTasks.map((t) => (
+              <span
+                key={t.action_number}
+                title={t.title}
+                className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700"
+              >
+                ↳ Linked task: {t.action_number} · {t.status.replace(/_/g, ' ')}
+              </span>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

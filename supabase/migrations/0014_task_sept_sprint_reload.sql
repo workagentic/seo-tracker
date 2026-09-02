@@ -1,8 +1,20 @@
--- Run AFTER scripts/seed-users.ts has created the 9 profiles.
+-- Replaces the original 34-action strategy-doc register (CLAUDE.md Section 10.2) with the
+-- 92-task, 5-week September production sprint from Staff Docs/All tasks sheet.xlsx (1 Sep - 30
+-- Sep 2026). `on delete cascade` on task_activity.task_id (migration 0012) means each task's
+-- activity history goes with it -- there is no separate cleanup step here.
+--
+-- Mapping notes:
+--   * action_number: sheet's code verbatim, except "A16" (Claim software partner directories),
+--     which repeats identically in all 5 weeks -- disambiguated here as A16-W1..A16-W5.
+--   * category: sheet's Category column (new column added in migration 0013).
+--   * position_responsible: sheet's Ownership text verbatim (e.g. "Tabish & Talha").
+--   * assigned_to / co_assigned_to: first / second name in Ownership, resolved against profiles.
+--   * due_date: end of that task's sprint week (Fri 4/11/18/25 Sep, Wed 30 Sep for week 5).
+--   * quarter: 'Q1' for all rows (the whole sprint falls inside the Q1 window).
+--   * status: defaults to 'pending' (sheet's "Not started").
 
--- Task register: the 92-task, 5-week September production sprint (Staff Docs/All tasks
--- sheet.xlsx, 1 Sep - 30 Sep 2026), which replaced the original 34-action strategy-doc
--- register on 1 Sep 2026 (see supabase/migrations/0014_task_sept_sprint_reload.sql).
+delete from tasks;
+
 insert into tasks (action_number, title, description, category, position_responsible, assigned_to, co_assigned_to, due_date, quarter, notes)
 select 'S1', 'Internal Controls & SOX Compliance Services', 'Create parent & child pages with complete meta, H1/H2 structure, internal linking across SILO.', 'Service Pages', 'Tabish & Talha', (select id from profiles where full_name = 'Tabish Khalid'), (select id from profiles where full_name = 'Talha Azeem'), '2026-09-04'::date, 'Q1', null
 union all select 'S2', 'External Audit Support', 'Build service page with on-page SEO, schema markup, and cross-links to audit cluster.', 'Service Pages', 'Tabish & Talha', (select id from profiles where full_name = 'Tabish Khalid'), (select id from profiles where full_name = 'Talha Azeem'), '2026-09-04'::date, 'Q1', null
@@ -96,75 +108,3 @@ union all select 'DR10', 'Revamp blog image — Blog 10', 'Update/replace featur
 union all select 'T5', 'Schema markup implementation', 'Implement JSON-LD structured data across service pages, location pages, and blog posts (Organization, Service, LocalBusiness, Article schemas).', 'Technical SEO', 'Tabish & Usman', (select id from profiles where full_name = 'Tabish Khalid'), (select id from profiles where full_name = 'Usman Ali'), '2026-09-30'::date, 'Q1', 'After all new pages are live'
 union all select 'A16-W5', 'Claim software partner directories', 'Complete partner/certification profiles: NetSuite, Sage Intacct, QuickBooks ProAdvisor, Xero Partner, Bill.com, Ramp, Brex.', 'Links', 'Syed Ali', (select id from profiles where full_name = 'Syed Ali'), null, '2026-09-30'::date, 'Q1', null
 union all select 'W4', 'Service pages & location page publishing', 'Publish service pages with provided data, implement redirections, add metas, ctas, navbar/footer links update', 'Website', 'Tabish & Usman', (select id from profiles where full_name = 'Tabish Khalid'), (select id from profiles where full_name = 'Usman Ali'), '2026-09-30'::date, 'Q1', null;
-
-insert into metric_snapshots (
-  snapshot_date, quarter_label, domain_rating, organic_traffic_global, organic_traffic_us,
-  organic_keywords_global, organic_keywords_us, keywords_top_3, keywords_top_10,
-  traffic_value_monthly, referring_domains_total, referring_domains_quality,
-  avg_keywords_per_page, indexed_content_pages, notes
-) values (
-  '2026-08-23', 'Baseline', 24, 286, 260, 115, 86, 16, 96, 1467, 861, 35, 2.5, 45,
-  'Baseline snapshot per CLAUDE.md Section 10.3'
-);
-
-insert into audit_reports (title, category, severity, finding, recommendation, assigned_to) values
-('Sold-backlink referring domains', 'backlink', 'critical',
- '17 referring domains explicitly advertise selling backlinks (pbnseolinks.shop, buybacklinks.agency, buyseobacklinks.shop, etc.)',
- 'Disavow all 17 domains in Search Console', (select id from profiles where full_name = 'Talha Azeem')),
-('High-equity URLs redirected', 'technical', 'critical',
- 'Two highest-equity URLs (/accounts-payable/, /general-accounting-and-bookkeeping/ at UR 11.7) are 301 redirects',
- 'Restore or properly consolidate these URLs', (select id from profiles where full_name = 'Usman Ali')),
-('Cloudflare 404 with link equity', 'technical', 'critical',
- '/cdn-cgi/l/email-protection (UR 9.9) returns 404 — Cloudflare artefact with accumulated links',
- 'Redirect to a relevant live page', (select id from profiles where full_name = 'Usman Ali')),
-('Fractional CFO page redirected', 'technical', 'critical',
- '/fractional-cfo-services/ (UR 9.9) is a 301 redirect — target keyword worth 14,000 searches/mo at $10 CPC',
- 'Restore this page as a live, optimised URL', (select id from profiles where full_name = 'Talha Azeem')),
-('302 instead of 301 redirect', 'technical', 'high',
- 'eaccelerated.com redirects with 302 (temporary) instead of 301 — not consolidating link equity',
- 'Change redirect type to 301', (select id from profiles where full_name = 'Usman Ali')),
-('HTTP/HTTPS duplication', 'technical', 'high',
- 'HTTP and HTTPS versions of pages both return 200 — no canonical consolidation',
- 'Force redirect HTTP to HTTPS and set canonical tags', (select id from profiles where full_name = 'Usman Ali')),
-('Flat site architecture', 'architecture', 'high',
- 'Perfectly flat site architecture — every page at UR 6.9, nothing prioritised',
- 'Introduce hub-and-spoke silo structure', (select id from profiles where full_name = 'Talha Azeem')),
-('Manufacturing accounting page not ranking', 'content', 'high',
- '/manufacturing-accounting/ exists but ranks for none of its head terms (KD 0)',
- 'Rewrite and optimise for target keywords', (select id from profiles where full_name = 'Lavi Shamoon')),
-('Ecommerce accounting page not ranking', 'content', 'high',
- '/ecommerce-accounting/ exists but ranks for none of its head terms',
- 'Rewrite and optimise for target keywords', (select id from profiles where full_name = 'Lavi Shamoon')),
-('Amazon accounting page not ranking', 'content', 'high',
- '/amazon-accounting/ exists but ranks for none of its head terms (KD 0)',
- 'Rewrite and optimise for target keywords', (select id from profiles where full_name = 'Lavi Shamoon')),
-('TPM page not ranking', 'content', 'high',
- '/trade-promotions-management/ exists but ranks for none of its head terms',
- 'Rewrite and optimise for target keywords', (select id from profiles where full_name = 'Lavi Shamoon')),
-('Fractional CFO traffic loss', 'content', 'high',
- '/fractional-cfo-services/ (301''d) — 14,000 searches/mo, EA earns zero traffic',
- 'Restore and optimise this page', (select id from profiles where full_name = 'Najma Furqan')),
-('Keyword cannibalisation', 'technical', 'medium',
- 'Keyword cannibalisation: /blog/how-much-does-a-cpa-cost/ vs /cpa-cost/ competing on same intent',
- 'Consolidate into a single canonical page', (select id from profiles where full_name = 'Talha Azeem')),
-('Duplicate inventory pages', 'technical', 'medium',
- '/inventory-management/ and /inventory-management-services/ duplicated',
- 'Merge or differentiate and canonicalise', (select id from profiles where full_name = 'Talha Azeem')),
-('Duplicate blog hubs', 'technical', 'medium',
- '/blog/ and /blogs/ both exist — duplicate resource hub',
- 'Consolidate into a single blog path with redirects', (select id from profiles where full_name = 'Usman Ali')),
-('No hub-and-spoke linking', 'architecture', 'medium',
- 'No hub-and-spoke internal linking — service, industry, location pages all isolated',
- 'Build internal link matrix per silo', (select id from profiles where full_name = 'Talha Azeem')),
-('No schema markup', 'technical', 'medium',
- 'No schema markup deployed (Organization, Service, FAQPage, BreadcrumbList)',
- 'Implement structured data across key templates', (select id from profiles where full_name = 'Usman Ali'));
-
-insert into tracked_keywords (keyword, priority, category, target_url, monthly_volume, keyword_difficulty, cpc) values
-('fractional cfo services', 'high', 'striking-distance', '/fractional-cfo-services/', 14000, 42, 10.50),
-('cpa cost', 'high', 'striking-distance', '/cpa-cost/', 2400, 28, 6.20),
-('manufacturing accounting', 'high', 'striking-distance', '/manufacturing-accounting/', 880, 22, 8.10),
-('ecommerce accounting', 'high', 'striking-distance', '/ecommerce-accounting/', 1600, 31, 7.40),
-('amazon accounting', 'medium', 'striking-distance', '/amazon-accounting/', 590, 19, 5.90),
-('trade promotions management', 'medium', 'striking-distance', '/trade-promotions-management/', 320, 25, 9.80),
-('inventory management services', 'medium', 'striking-distance', '/inventory-management-services/', 1100, 30, 6.60);

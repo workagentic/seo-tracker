@@ -24,6 +24,24 @@ export default async function AuditPage({
   if (params.status) query = query.eq('status', params.status)
 
   const { data } = await query
+  const reports = (data as AuditReport[]) ?? []
+
+  const { data: linkedTasks } = reports.length
+    ? await supabase
+        .from('tasks')
+        .select('id, action_number, title, status, linked_finding_id')
+        .in(
+          'linked_finding_id',
+          reports.map((r) => r.id)
+        )
+    : { data: [] }
+
+  const tasksByFinding = new Map<string, { action_number: string; title: string; status: string }[]>()
+  for (const t of (linkedTasks ?? []) as { action_number: string; title: string; status: string; linked_finding_id: string }[]) {
+    const list = tasksByFinding.get(t.linked_finding_id) ?? []
+    list.push({ action_number: t.action_number, title: t.title, status: t.status })
+    tasksByFinding.set(t.linked_finding_id, list)
+  }
 
   return (
     <div>
@@ -33,7 +51,9 @@ export default async function AuditPage({
       </div>
       <AuditFilters />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {((data as AuditReport[]) ?? []).map((report) => <AuditCard key={report.id} report={report} />)}
+        {reports.map((report) => (
+          <AuditCard key={report.id} report={report} linkedTasks={tasksByFinding.get(report.id) ?? []} />
+        ))}
       </div>
     </div>
   )

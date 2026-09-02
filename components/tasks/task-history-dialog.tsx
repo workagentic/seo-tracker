@@ -14,8 +14,16 @@ const FIELD_LABELS: Record<string, string> = {
   position_responsible: 'Position responsible',
   assigned_to: 'Assigned to',
   co_assigned_to: 'Co-owner',
+  approver_id: 'Approver',
   due_date: 'Due date',
   quarter: 'Quarter',
+  category: 'Category',
+  change_request_reason: 'Change request reason',
+  link_url: 'Link',
+  repeats: 'Repeats',
+  next_due: 'Next due',
+  linked_finding_id: 'Linked Audit finding',
+  linked_keyword_id: 'Linked keyword',
 }
 
 export function TaskHistoryDialog({ taskId, actionNumber }: { taskId: string; actionNumber: string }) {

@@ -11,7 +11,14 @@ export interface Profile {
   is_active: boolean
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'overdue'
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'blocked'
+  | 'overdue'
+  | 'submitted_for_review'
+  | 'changes_requested'
 export type QuarterLabel = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Q5'
 
 export interface Task {
@@ -22,16 +29,26 @@ export interface Task {
   position_responsible: string | null
   assigned_to: string | null
   co_assigned_to: string | null
+  approver_id: string | null
   due_date: string | null
   status: TaskStatus
   quarter: QuarterLabel | 'All' | null
+  category: string | null
   notes: string | null
+  link_url: string | null
+  repeats: string | null
+  next_due: string | null
+  linked_finding_id: string | null
+  linked_keyword_id: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
   updated_by: string | null
   assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   co_assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  approver_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  linked_finding?: Pick<AuditReport, 'id' | 'title' | 'status'> | null
+  linked_keyword?: Pick<TrackedKeyword, 'id' | 'keyword'> | null
 }
 
 export interface TaskActivity {
@@ -43,6 +60,15 @@ export interface TaskActivity {
   new_value: string | null
   created_at: string
   changed_by_profile?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
+export interface TaskComment {
+  id: string
+  task_id: string
+  author_id: string | null
+  body: string
+  created_at: string
+  author_profile?: Pick<Profile, 'id' | 'full_name'> | null
 }
 
 export type MetricKey =

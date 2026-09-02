@@ -123,21 +123,36 @@ create table profiles (
 ```
 
 ### 5.2 `tasks`
-The 34-action register from Section 11.1. Pre-seeded but editable.
+Pre-seeded but editable. As of 1 Sep 2026 this holds the 92-task, 5-week September production
+sprint (see Section 10.2) rather than the original 34-action strategy-doc register.
 ```sql
 create table tasks (
   id uuid primary key default gen_random_uuid(),
-  action_number text not null,          -- e.g. "A1", "A5"
+  action_number text not null,          -- e.g. "S1", "L1", "B1", "T1", "A16-W1"
   title text not null,
   description text,
-  position_responsible text,            -- human-readable, e.g. "Abdullah Shekha"
+  position_responsible text,            -- human-readable, e.g. "Tabish & Talha"
   assigned_to uuid references profiles(id),
   co_assigned_to uuid references profiles(id),
+  approver_id uuid references profiles(id),  -- added 0015_task_approval.sql; null = no sign-off
+                                              -- required, opt-in per task (Section 8.3)
   due_date date,
   status text not null default 'pending'
-    check (status in ('pending', 'in_progress', 'completed', 'blocked', 'overdue')),
+    check (status in (
+      'pending', 'in_progress', 'completed', 'blocked', 'overdue',
+      'submitted_for_review', 'changes_requested'  -- added 0015_task_approval.sql
+    )),
   quarter text,                         -- e.g. "Q1", "Q2"
+  category text,                        -- e.g. "Service Pages", "Technical SEO" -- added
+                                         -- 0013_task_category.sql, sourced from the sprint sheet
   notes text,
+  link_url text,                        -- added 0017_task_link_url.sql (Section 8.3)
+  repeats text,                         -- added 0018_task_recurrence.sql; freeform cadence
+                                         -- label, e.g. "Weekly, on Friday" (Section 8.3)
+  next_due date,                        -- added 0018_task_recurrence.sql; stands in for
+                                         -- due_date wherever overdue-ness is computed once set
+  linked_finding_id uuid references audit_reports(id),   -- added 0019_task_links.sql
+  linked_keyword_id uuid references tracked_keywords(id), -- added 0019_task_links.sql
   completed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -386,6 +401,20 @@ create table task_activity (
 );
 ```
 
+### 5.16 `task_comments`
+Added `0016_task_comments.sql`. See Section 8.3. Distinct from `tasks.notes` (a single
+overwritable field with no UI) — this is an append-only conversation thread, immutable once
+posted (no edit/delete), same convention as `task_activity`.
+```sql
+create table task_comments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid references tasks(id) on delete cascade,
+  author_id uuid references profiles(id),
+  body text not null,
+  created_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -595,14 +624,17 @@ mode only; **this app has no dark mode**, so no dark palette variant was built.
 
 ### 8.3 Task Tracker (`/tasks`)
 
-**Purpose:** The 34-action register from Section 11.1, turned into a live task board.
+**Purpose:** A live task board over the current action register — originally the 34-action
+register from Section 11.1, replaced 1 Sep 2026 by the September production sprint (Section
+10.2).
 
 **Add/Edit/Delete (admin only — implemented 28 Aug 2026):** a "New Task" button and per-row
 Edit/Delete actions appear only for `role = 'admin'` — distinct from the head/owner status
 editing already described below. `POST /api/tasks` creates; `PATCH /api/tasks/[id]` accepts
 `action_number`/`title`/`description`/`position_responsible`/`assigned_to`/
-`co_assigned_to`/`due_date`/`quarter` only when the caller is admin (non-admins get 403 if
-they send any of those fields — `status`/`notes` still follow the existing head/owner rule);
+`co_assigned_to`/`approver_id`/`due_date`/`quarter`/`category` only when the caller is admin
+(non-admins get 403 if they send any of those fields — `status`/`notes` still follow the
+head/owner/approver rule below);
 `DELETE /api/tasks/[id]` is admin-only (hard delete — `tasks` has no `is_active` column).
 RLS: `tasks_delete_admin` (migration `0008`) backs the delete path for defense-in-depth,
 though the route itself uses the service-role client.
@@ -644,11 +676,84 @@ additive.
 persists this to `tasks.status` — previously it was only computed live in the UI filter.
 
 **Permissions:**
-- `owner` role: can change status and notes only on tasks where they are `assigned_to` or `co_assigned_to`
+- `owner` role: can change status and notes only on tasks where they are `assigned_to`,
+  `co_assigned_to`, or the task's `approver_id` (see approval workflow below)
 - `head` and `admin`: can edit all fields on all tasks
 - `leadership`: read only
 
-**Q1 highlight:** Tasks A1–A22 (due by 30 Sep 2026) should be visually distinguished — prominent "Q1 Sprint" banner or colour strip.
+**Approval workflow — implemented 1 Sep 2026 (`Staff Docs/approval_mockup.html`).** Optional,
+opt-in per task via the new `approver_id` field (admin-only to set, via `TaskFormDialog`) —
+leaving it blank on a task keeps today's behaviour exactly as-is (owner can self-complete
+directly). Once set:
+- The task's owner (`assigned_to`/`co_assigned_to`) can no longer self-complete — their
+  ceiling becomes `submitted_for_review`.
+- The designated approver (whoever `profile.id === task.approver_id`, regardless of their
+  own role) can, only while the task is `submitted_for_review`, either **Approve** (writes
+  `status = 'completed'` directly — there is no separate persisted `'approved'` status) or
+  **Request changes** (writes `status = 'changes_requested'`, with a mandatory reason logged
+  to `task_activity` as a `change_request_reason` entry, visible in the History dialog). The
+  owner then moves it back to `in_progress` themselves once addressed.
+- `lib/tasks/permissions.ts`'s `getAllowedStatuses`/`canEditTaskStatus` (unit-tested) is the
+  single source of truth for both the API's write-time validation
+  (`app/api/tasks/[id]/route.ts`) and which options the `TaskStatusSelect` dropdown offers —
+  `leadership` gets none regardless of any owner/approver match, matching Section 4.
+- The Tasks table shows a new Approver column and an amber "Nd awaiting approval" badge
+  (computed live from `updated_at`, not a stored field) while `submitted_for_review`.
+- Two new notification-bell types (`lib/notifications.ts`): "awaiting your approval" (to the
+  approver) and "changes requested" (to the doer).
+- `/api/cron/daily-overdue` now also marks `submitted_for_review`/`changes_requested` tasks
+  overdue past their due date, same as `pending`/`in_progress`/`blocked`.
+
+**Comments — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #1,
+`task_comments` table, Section 5.16).** A "Comments" button next to "History" on every task
+row opens a threaded, append-only conversation (`app/api/tasks/[id]/comments/route.ts`,
+`TaskCommentsDialog`) — distinct from the pre-existing but UI-less `tasks.notes` field, which
+is unchanged and untouched by this. Anyone `admin`/`head`/`owner` can post on any task
+(matching the team-wide task visibility in Section 4); `leadership` can read but not post.
+Posting triggers a new `new-comment` notification-bell entry to the task's owner, co-owner,
+and approver (excluding the commenter) — message deliberately doesn't name the commenter,
+matching how the existing `status-changed` notification also omits who made the change.
+
+**Link to review — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #2,
+`tasks.link_url`).** A single URL field, admin-only to set via `TaskFormDialog`, shown as a
+🔗 link next to the task title. Link-only, no file upload — there's no Supabase Storage
+bucket in this project, and a URL covers the mockup's "link to the live page / doc /
+screenshot" case without new infrastructure.
+
+**Recurrence — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #3,
+`tasks.repeats`/`tasks.next_due`).** `repeats` is a freeform cadence label (e.g. "Weekly, on
+Friday"); `next_due` is the actual comparable date. Once `next_due` is set on a task, it
+stands in for `due_date` everywhere overdue-ness is computed — the Tasks table's Due column,
+`lib/notifications.ts`'s overdue/deadline-soon logic, and `/api/cron/daily-overdue` — so a
+recurring task (the kind of thing the old "Recurring" A34 register entry could never be
+flagged late for) becomes overdue-capable. As of this session's task-data reload (Section
+10.2) no task in the live register currently uses this — it's available for whenever a
+recurring task like weekly reviews gets added.
+
+**Bulk actions — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #4,
+`app/api/tasks/bulk/route.ts`).** Row checkboxes + a toolbar appear once at least one task is
+selected: **Reassign to** (admin-only), **Set status to** (`admin`/`head`/`owner`; reuses
+`lib/tasks/permissions.ts`'s `getAllowedStatuses` per row server-side, silently skipping rows
+the caller isn't allowed to change and reporting a skip count — `changes_requested` is
+excluded from the bulk status options since it requires a per-task reason), and **Export
+CSV** (client-side, available to everyone, no server round-trip).
+
+**Task linking — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #5,
+`tasks.linked_finding_id`/`tasks.linked_keyword_id`).** This is what would have caught the
+real A12-vs-finding mismatch (task marked completed, its linked Audit Reports finding still
+open) at the source. Admin-only to set via `TaskFormDialog` (dropdowns of `audit_reports`/
+`tracked_keywords`). A linked finding shows both ways: as a badge on the task row, and as an
+"↳ Linked task: A12 · status" badge on the finding's `AuditCard` (Section 8.7). When a task
+with a `linked_finding_id` is moved to `completed`, `TaskStatusSelect` shows a confirm dialog
+— "Also mark that finding resolved?" — and on confirmation `app/api/tasks/[id]/route.ts`
+updates the linked `audit_reports` row to `status = 'resolved'` in the same request (opt-in
+via `resolve_linked_finding` in the PATCH body, not automatic). Keyword linking has no
+equivalent auto-resolve (`tracked_keywords` has no status field) — it's link-only, for
+visibility.
+
+**Q1 highlight:** Tasks in the current sprint (all due by 30 Sep 2026) should be visually
+distinguished — prominent "Q1 Sprint" banner or colour strip. (Originally scoped to A1–A22;
+since 1 Sep 2026 the whole 92-task September sprint fills this window — see Section 10.2.)
 
 ---
 
@@ -678,7 +783,9 @@ note 11.
 - 🟡 Amber — actual is 80–94% of target
 - 🔴 Red — actual < 80% of target
 
-**Additional scorecard row:** "Actions A1–A22 completed on time" — manually toggled by Tabish (head role). Shows 22/22 or actual count.
+**Additional scorecard row:** "Sprint actions completed on time" — manually toggled by Tabish
+(head role). Shows N/92 or actual count against the current September sprint (Section 10.2;
+originally scoped to A1–A22 out of 34).
 
 **Export button — implemented 29 Aug 2026:** Admin/head only. **CSV** is a real client-side
 download (`lib/scorecard.ts`'s `scorecardRowsToCsv`, unit-tested, triggered via a Blob +
@@ -755,6 +862,11 @@ and the on-screen table can't drift apart.
 **Pre-seeded findings from the strategy doc** (see Section 10.2 for the seed list).
 
 **New finding form:** Admin/head can add findings manually. All users can see all findings (read-only for `owner` and `leadership` roles).
+
+**Linked tasks — implemented 2 Sep 2026 (Section 8.3's task linking).** A finding with one or
+more tasks pointing to it via `tasks.linked_finding_id` shows an "↳ Linked task: A12 · status"
+badge per linked task. Approving/completing a linked task offers to resolve the finding in
+the same step (Section 8.3) — this is what closes the loop `AuditCard` alone can't.
 
 ---
 
@@ -877,21 +989,29 @@ current, authoritative role table.
 | Haroon | leadership | Leadership / CMO |
 | Adeela | leadership | CPA Reviewer |
 
-### 10.2 34 Actions (`tasks` seed)
+### 10.2 September Sprint (`tasks` seed)
 
-**Superseded 28 Aug 2026 for 6 team members.** The SEO team provided updated per-person
-action trackers (`Documents from SEO Team/EA_SEO_Team_Action_Tracker_Updated.xlsx`).
-Najma Furqan, Usman Ali, Haroon, Syed Ali, Abdullah Shekha, and Hameed Ishaq's original
-primary-owned tasks below were deleted and replaced with 43 new tasks (`A35`–`A77`) sourced
-from that file — the original numbering (A1, A3, A5, A6, A8, A9, A11, A13, A15, A16, A17,
-A21, A22, A24, A28, A29, A31, A32) is reused below for historical reference only and no
-longer reflects live data for those 6 people. **Talha Azeem, Lavi Shamoon, and Tabish
-Khalid's tasks were left untouched** (no updated tracker existed for them). The new tasks'
-`notes` field carries the original "Ownership"/"Category"/due-date-as-written text verbatim
-where it couldn't be cleanly mapped to a real column (e.g. "Ongoing", "(To be decided)",
-multi-person collaboration credit beyond the single `co_assigned_to` FK).
+**Fully superseded 1 Sep 2026.** The entire `tasks` table (both the original 34-action
+strategy-doc register and the 43 tasks, `A35`–`A77`, added 28 Aug 2026 from
+`Documents from SEO Team/EA_SEO_Team_Action_Tracker_Updated.xlsx` for 6 team members) was
+deleted and replaced with a 92-task, 5-week production sprint sourced from
+`Staff Docs/All tasks sheet.xlsx` (migration `0014_task_sept_sprint_reload.sql`). None of the
+action numbering below (A1–A77) is live anymore — it's kept only as history for anyone
+tracing older activity-log entries or reports.
 
-Original seed (still live for Talha/Lavi/Tabish; historical reference only for the other 6):
+The current register runs 1 Sep – 30 Sep 2026 across 5 weekly blocks (due dates: Fri 4/11/18/25
+Sep, Wed 30 Sep), organized by `category` (added in migration `0013_task_category.sql`, not
+present in the original schema): Service Pages, Location Pages, New Blogs, Blog Revamp,
+Proofreading, Publishing, Design / Images, Technical SEO, Website, Links, Off-Page SEO.
+`action_number` follows the sheet's own short codes (`S1`–`S18`, `L1`–`L4`, `B1`–`B8`,
+`R1`–`R10`, `P1`–`P8`, `PB1`–`PB8`, `D1`–`D8`, `DR1`–`DR10`, `T1`–`T5`, `W1`–`W4`, `O1`–`O4`),
+except the recurring "Claim software partner directories" task, which the sheet lists
+identically in all 5 weeks under the code `A16` — disambiguated here as `A16-W1`…`A16-W5` so
+each week's row stays unique. All 92 rows carry `quarter = 'Q1'` (the whole sprint sits inside
+the Q1 window) and `status = 'pending'` at seed time. See `supabase/seed.sql` for the full
+per-task list (owner, due date, description, notes).
+
+**Historical: the original 34-action register (superseded 1 Sep 2026):**
 
 | Action | Title | Primary Owner | Co-Owner | Due Date | Quarter |
 |---|---|---|---|---|---|
@@ -1218,13 +1338,52 @@ a few things worth knowing before calling this done:
 - Competitor comparison (Section 8.5) — EA pinned row + per-metric delta vs. EA
   (`lib/competitors.ts`).
 - Notification bell (Topbar) — live-computed overdue/deadline-soon/status-changed
-  notifications (`lib/notifications.ts`); no persisted notifications table.
+  notifications (`lib/notifications.ts`). **Updated 2 Sep 2026:** clickable (jumps to and
+  highlights the task on `/tasks`), full per-item read/unread + "Mark all as read"
+  (`notification_reads` table, migration `0020`) — see the dedicated changelog entry below.
 - Weekly `competitor_snapshots` history + automated Monday cron for both GSC keywords and
   competitors (Section 8.9's "Weekly automation").
 - Quarterly Target values moved from a hardcoded constant to an admin-editable
   `quarterly_targets` table, editable via `/scorecard/edit` (Section 8.4/10.3).
 - Live tasks/competitors/keywords data replaced from the SEO team's updated planning
   documents (Section 10.2/12 notes 1-2) — 58 tasks, 8 competitors, 96 keywords as of import.
+- **1 Sep 2026:** `tasks` fully replaced again — all 58 prior tasks deleted, reloaded with the
+  92-task, 5-week September production sprint from `Staff Docs/All tasks sheet.xlsx`, plus a
+  new `category` column (migrations `0013_task_category.sql`,
+  `0014_task_sept_sprint_reload.sql`). See Section 10.2.
+- **1 Sep 2026:** Task approval workflow (`Staff Docs/approval_mockup.html`) — optional
+  `approver_id` field, 2 new statuses (`submitted_for_review`, `changes_requested`), and a
+  permission model in `lib/tasks/permissions.ts` (migration `0015_task_approval.sql`). See
+  Section 8.3.
+- **2 Sep 2026:** Threaded task comments (`Staff Docs/further_recs_mockup.html` #1) — new
+  `task_comments` table (migration `0016_task_comments.sql`), `TaskCommentsDialog`, and a
+  `new-comment` notification type. See Section 8.3.
+- **2 Sep 2026:** Remaining `further_recs_mockup.html` items #2–#5 — link-to-review field
+  (`tasks.link_url`, migration `0017`), recurrence (`tasks.repeats`/`next_due`, migration
+  `0018`, wired into overdue logic everywhere it's computed), bulk actions
+  (`app/api/tasks/bulk/route.ts`: reassign, set-status, export CSV), and task linking to
+  Audit findings/keywords (`tasks.linked_finding_id`/`linked_keyword_id`, migration `0019`,
+  with a resolve-finding-too prompt on task completion). See Section 8.3 and 8.7.
+- **2 Sep 2026:** Notification bell fixes reported by Abdullah — (1) notifications weren't
+  clickable, (2) no way to mark read/unread or bring the unread count down, (3) other users'
+  changes (e.g. a task status edit) needed a manual page refresh to show up anywhere in the
+  app. Fixed together:
+  - **Clickable + read/unread** (`notification_reads` table, migration `0020`,
+    `app/api/notifications/mark/route.ts`): clicking a notification jumps to `/tasks` and
+    scrolls to + briefly highlights that row (`?highlight=<taskId>`), marking it read.
+    Notifications are computed live, not stored rows (`lib/notifications.ts`), so each one now
+    carries a `key` stable per *instance* (e.g. `status-changed` keys on `updated_at`, so
+    reading one change doesn't suppress the next) — read state is tracked against that key,
+    not the notification itself. Per-item mark read/unread toggle plus "Mark all as read".
+  - **Live sync** (`components/layout/realtime-refresh.tsx`, migration
+    `0021_realtime_publication.sql`): Supabase Realtime, not polling — explicitly requested;
+    the WebSocket connection is from the browser directly to Supabase's managed Realtime
+    service, not something this app's own Vercel functions host. One subscription in the
+    dashboard layout watches every shared table (tasks, task_activity, task_comments,
+    competitors, tracked_keywords, keyword_history, audit_reports, metric_snapshots,
+    ga4_snapshots, clarity_snapshots) and debounce-refreshes the current route on any change;
+    the bell has its own smaller subscription (tasks, task_comments) so the unread count stays
+    current even with the dropdown closed.
 - Task add/edit/delete (admin only, Section 8.3) and search + sortable columns on
   Tasks/Keywords/Competitors tables.
 - Dashboard charts (Section 8.2) — traffic trend, DR progression, keywords distribution,
@@ -1246,10 +1405,41 @@ a few things worth knowing before calling this done:
 - Scorecard CSV/PDF export (Section 8.4) — CSV is a real download; PDF is the browser's
   native print dialog with `print:hidden` chrome, not a new PDF-generation dependency.
 
+**Session paused 1 Sep 2026 — resume here next session.** Working through
+`Staff Docs/approval_mockup.html` and `Staff Docs/further_recs_mockup.html` as 7 sequential
+sub-projects (task data migration first, since the other 6 build on top of it), each done via
+the brainstorming skill's "bounded" flow (context → clarifying questions → short in-chat
+design → approval → implement, no separate spec doc) rather than one combined design:
+1. ✅ Task data migration (Section 10.2) — **done, migrations 0013/0014 confirmed applied by
+   Abdullah via the Supabase SQL editor.**
+2. ✅ Approval workflow (Section 8.3) — **done, migration `0015_task_approval.sql` confirmed
+   applied by Abdullah (2 Sep 2026).**
+3. ✅ Comments thread per task (`further_recs_mockup.html` #1) — **done, migration
+   `0016_task_comments.sql` confirmed applied by Abdullah (2 Sep 2026).**
+4. ✅ Attachment/link field per task (#2) — **done, migration `0017_task_link_url.sql`
+   confirmed applied by Abdullah (2 Sep 2026).**
+5. ✅ Explicit recurrence (`Repeats` + `Next due`) (#3) — **done, migration
+   `0018_task_recurrence.sql` confirmed applied (2 Sep 2026).**
+6. ✅ Bulk actions — reassign, set-status, export CSV (#4) — **done, no migration needed
+   (no schema change).**
+7. ✅ Link a task to an Audit finding / keyword, with a resolve-the-finding-too prompt on
+   completion (#5) — **done, migration `0019_task_links.sql` confirmed applied (2 Sep
+   2026).** This is the one that directly addresses the real A12-vs-finding mismatch bug the
+   mockups were written to prevent.
+
+**All 7 items from both mockups are now fully done — code and migrations both confirmed.**
+
+**2 Sep 2026, follow-up fixes (notification bell + live sync) — done, migrations
+`0020_notification_reads.sql` and `0021_realtime_publication.sql` confirmed applied by
+Abdullah (2 Sep 2026).** If updates still aren't appearing without a refresh, double-check the
+Realtime toggle is on for the project in the Supabase dashboard under Database → Replication
+— the migration adds tables to the publication, but that's separate from the project-level
+Realtime enable switch.
+
 **Known gaps (not yet built):**
 - Task detail slide-in panel (Section 8.3) — not built as a dedicated panel; its fields are
   already editable via `TaskFormDialog`/`TaskStatusSelect` instead.
-- Scorecard's "Actions A1–A22 completed on time" toggle (Section 8.4) — CSV/PDF export is
+- Scorecard's "Sprint actions completed on time" toggle (Section 8.4) — CSV/PDF export is
   done, this toggle is not.
 - Weekly report's KPI section can go stale — `metric_snapshots` isn't refreshed by the
   weekly cron, only by the manual Ahrefs sync button (see Section 8.8's "Known gap").

@@ -23,8 +23,15 @@ export async function POST(request: Request) {
       position_responsible: body.position_responsible || null,
       assigned_to: body.assigned_to || null,
       co_assigned_to: body.co_assigned_to || null,
+      approver_id: body.approver_id || null,
       due_date: body.due_date || null,
       quarter: body.quarter || null,
+      category: body.category || null,
+      link_url: body.link_url || null,
+      repeats: body.repeats || null,
+      next_due: body.next_due || null,
+      linked_finding_id: body.linked_finding_id || null,
+      linked_keyword_id: body.linked_keyword_id || null,
       status: 'pending',
     } as never)
     .select()
