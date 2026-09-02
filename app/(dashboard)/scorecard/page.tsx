@@ -3,9 +3,12 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { getAllSnapshots } from '@/lib/metrics'
 import { getQuarterlyTargets } from '@/lib/targets'
+import { getAccountabilityMap } from '@/lib/accountability'
+import { canSyncScorecardActuals } from '@/lib/scorecard'
 import { ScorecardTable } from '@/components/scorecard/scorecard-table'
 import { QuarterSelector } from '@/components/scorecard/quarter-selector'
 import { ExportButtons } from '@/components/scorecard/export-buttons'
+import { SyncButton } from '@/components/dashboard/sync-button'
 
 export default async function ScorecardPage({
   searchParams,
@@ -15,7 +18,11 @@ export default async function ScorecardPage({
   const { quarter } = await searchParams
   const profile = await getCurrentProfile()
   const supabase = await createServerSupabaseClient()
-  const [snapshots, targets] = await Promise.all([getAllSnapshots(supabase), getQuarterlyTargets(supabase)])
+  const [snapshots, targets, accountabilityMap] = await Promise.all([
+    getAllSnapshots(supabase),
+    getQuarterlyTargets(supabase),
+    getAccountabilityMap(supabase),
+  ])
 
   const selected = quarter && quarter in targets ? quarter : 'baseline'
   // getAllSnapshots is ordered oldest -> newest, so the last match for a quarter is the latest one.
@@ -24,12 +31,14 @@ export default async function ScorecardPage({
   const target = targets[selected]
 
   const canExport = profile && ['admin', 'head'].includes(profile.role)
+  const canSync = profile && canSyncScorecardActuals(profile)
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between print:hidden">
         <h1 className="text-xl font-semibold text-foreground">Quarterly Scorecard</h1>
         <div className="flex items-center gap-3">
+          {canSync && <SyncButton endpoint="/api/scorecard/sync-actuals" label="Sync Actuals" />}
           {profile?.role === 'admin' && (
             <Link href="/scorecard/edit" className="text-sm font-medium text-primary hover:underline">
               Edit Targets
@@ -43,10 +52,10 @@ export default async function ScorecardPage({
       </h1>
       {canExport && (
         <div className="mb-4 flex justify-end">
-          <ExportButtons snapshot={snapshot} target={target} quarterLabel={target.label} />
+          <ExportButtons snapshot={snapshot} target={target} quarterLabel={target.label} accountabilityMap={accountabilityMap} />
         </div>
       )}
-      <ScorecardTable snapshot={snapshot} target={target} />
+      <ScorecardTable snapshot={snapshot} target={target} accountabilityMap={accountabilityMap} />
     </div>
   )
 }

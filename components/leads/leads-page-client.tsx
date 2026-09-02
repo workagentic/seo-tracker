@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { LeadsBoard } from './leads-board'
 import { LeadDetailDialog } from './lead-detail-dialog'
-import type { Lead, LeadSource } from '@/types'
+import type { Lead, LeadSourceWithOptions } from '@/types'
 
-export function LeadsPageClient({ leads, sources }: { leads: Lead[]; sources: LeadSource[] }) {
+export function LeadsPageClient({ leads, sources }: { leads: Lead[]; sources: LeadSourceWithOptions[] }) {
   const [openLead, setOpenLead] = useState<Lead | null>(null)
   return (
     <>

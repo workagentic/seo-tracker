@@ -14,6 +14,7 @@ import { TrafficTrendChart, type TrafficTrendPoint } from '@/components/dashboar
 import { DomainRatingChart, type DrPoint } from '@/components/dashboard/charts/domain-rating-chart'
 import { KeywordsDistributionChart } from '@/components/dashboard/charts/keywords-distribution-chart'
 import { CompetitorMetricBarChart, type CompetitorMetricRow } from '@/components/dashboard/charts/competitor-metric-bar-chart'
+import { SnapshotHistoryFeed } from '@/components/dashboard/snapshot-history-feed'
 import type { Competitor } from '@/types'
 
 const currency = (n: number) => `$${n.toLocaleString()}`
@@ -131,6 +132,12 @@ export default async function DashboardPage() {
               {canSync && <SyncButton endpoint="/api/sync/clarity" label="Sync Clarity" />}
             </div>
             <ClarityPanel snapshot={claritySnapshot} />
+          </div>
+        }
+        history={
+          <div className="rounded-md border border-border bg-card p-4">
+            <h2 className="mb-3 text-sm font-medium text-foreground">Weekly Snapshot History</h2>
+            <SnapshotHistoryFeed snapshots={allSnapshots} />
           </div>
         }
       />

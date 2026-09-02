@@ -304,6 +304,17 @@ export interface QuarterTarget {
   indexed_content_pages: number
 }
 
+// Admin-editable Scorecard "Accountable Owner" mapping -- replaced the hardcoded
+// ACCOUNTABILITY_MAP constant 2 Sep 2026 (CLAUDE.md Section 14 Phase 5, migration
+// 0027_metric_accountability.sql). owner_names are plain display strings (e.g. "Talha
+// Azeem", or the catch-all "All owners"), not profile references.
+export interface MetricAccountability {
+  metric_key: string
+  owner_names: string[]
+  updated_by: string | null
+  updated_at: string
+}
+
 export type LeadStage =
   | 'new_lead'
   | 'introductory_call'
@@ -313,7 +324,6 @@ export type LeadStage =
   | 'won'
   | 'lost'
 export type LeadBrand = 'workagentic' | 'expertise_accelerated'
-export type LeadSubmissionFrom = 'book_a_consultation' | 'contact_form' | 'chat'
 
 export interface LeadSource {
   id: string
@@ -322,6 +332,19 @@ export interface LeadSource {
   is_active: boolean
   created_at: string
 }
+
+// Per-source, admin-editable options for the "Submission From" field -- replaced the
+// hardcoded 3-value LeadSubmissionFrom enum 2 Sep 2026 (CLAUDE.md Section 14 Phase 4,
+// migration 0026_lead_source_submission_options.sql).
+export interface LeadSourceSubmissionOption {
+  id: string
+  source_id: string
+  label: string
+  is_active: boolean
+  created_at: string
+}
+
+export type LeadSourceWithOptions = LeadSource & { submission_options: LeadSourceSubmissionOption[] }
 
 export interface Lead {
   id: string
@@ -337,7 +360,7 @@ export interface Lead {
   employee_size: string | null
   source_id: string | null
   point_of_contact: string | null
-  submission_from: LeadSubmissionFrom | null
+  submission_from_id: string | null
   intro_call_date: string | null
   intro_call_status: 'conducted' | 'pending' | null
   intro_call_meeting_minutes: string | null

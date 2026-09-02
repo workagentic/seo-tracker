@@ -30,13 +30,29 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-export async function fetchGscQueryPositions(siteUrl: string, days = 90): Promise<GscQueryRow[]> {
+// `country`, when given, is a 3-letter ISO 3166-1 alpha-3 code (lowercase, e.g. 'usa') --
+// GSC's own country dimension format. Used by the Scorecard actuals sync (Section 14 Phase 5)
+// to get a US-scoped read the same way it fetches a separate global (unfiltered) read, mirroring
+// the Global/US split pattern Ahrefs metrics already use.
+export async function fetchGscQueryPositions(siteUrl: string, days = 90, country?: string): Promise<GscQueryRow[]> {
   const token = await getGoogleAccessToken([GSC_SCOPE])
 
   const end = new Date()
   end.setDate(end.getDate() - REPORT_LAG_DAYS)
   const start = new Date(end)
   start.setDate(start.getDate() - days)
+
+  const requestBody: Record<string, unknown> = {
+    startDate: formatDate(start),
+    endDate: formatDate(end),
+    dimensions: ['query', 'page'],
+    rowLimit: 5000,
+  }
+  if (country) {
+    requestBody.dimensionFilterGroups = [
+      { filters: [{ dimension: 'country', operator: 'equals', expression: country }] },
+    ]
+  }
 
   const url = `${SEARCH_CONSOLE_BASE}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`
   const res = await fetch(url, {
@@ -45,12 +61,7 @@ export async function fetchGscQueryPositions(siteUrl: string, days = 90): Promis
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      startDate: formatDate(start),
-      endDate: formatDate(end),
-      dimensions: ['query', 'page'],
-      rowLimit: 5000,
-    }),
+    body: JSON.stringify(requestBody),
   })
 
   if (!res.ok) {

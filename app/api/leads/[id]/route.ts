@@ -5,7 +5,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 const EDITABLE_FIELDS = [
   'stage', 'lead_date', 'full_name', 'company_name', 'email', 'phone_number', 'revenue',
   'service_needed', 'brand', 'employee_size', 'source_id', 'point_of_contact',
-  'submission_from', 'intro_call_date', 'intro_call_status', 'intro_call_meeting_minutes',
+  'submission_from_id', 'intro_call_date', 'intro_call_status', 'intro_call_meeting_minutes',
   'intro_call_email_sent', 'followup_1_scheduled_date', 'followup_1_date', 'followup_1_notes',
   'followup_1_email_sent', 'followup_2_scheduled_date', 'followup_2_date', 'followup_2_notes',
   'followup_2_email_sent', 'followup_3_scheduled_date', 'followup_3_date', 'followup_3_notes',

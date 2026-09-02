@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Competitor, MetricSnapshot } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
 import { compareToEA, type MetricComparison } from '@/lib/competitors'
+import { CompetitorHistoryRow } from './competitor-history-row'
 
 function DeltaBadge({ comparison }: { comparison: MetricComparison }) {
   if (comparison.direction === 'no-data' || comparison.deltaPct === null) return null
@@ -120,34 +121,37 @@ export function CompetitorTable({
             {visibleCompetitors.map((c) => {
               const [dr, traffic, keywords, top3, value, refDomains] = compareToEA(c, eaSnapshot)
               return (
-                <tr key={c.id} className="hover:bg-muted/50">
-                  <td className="px-4 py-2 font-medium text-foreground">{c.company_name}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{c.domain}</td>
-                  <CompetitorCell value={c.domain_rating} comparison={dr} />
-                  <CompetitorCell value={c.organic_traffic} comparison={traffic} />
-                  <CompetitorCell value={c.organic_keywords} comparison={keywords} />
-                  <CompetitorCell value={c.keywords_top_3} comparison={top3} />
-                  <td className="px-4 py-2 font-mono text-muted-foreground">
-                    {c.est_traffic_value ? `$${c.est_traffic_value.toLocaleString()}` : '—'}
-                    <DeltaBadge comparison={value} />
-                  </td>
-                  <CompetitorCell value={c.referring_domains} comparison={refDomains} />
-                  <td className="px-4 py-2 text-muted-foreground">{c.last_synced_at ? new Date(c.last_synced_at).toLocaleDateString() : 'never'}</td>
-                  {isAdmin && (
-                    <td className="px-4 py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          await fetch(`/api/competitors/${c.id}`, { method: 'DELETE' })
-                          router.refresh()
-                        }}
-                      >
-                        Remove
-                      </Button>
+                <Fragment key={c.id}>
+                  <tr className="hover:bg-muted/50">
+                    <td className="px-4 py-2 font-medium text-foreground">{c.company_name}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{c.domain}</td>
+                    <CompetitorCell value={c.domain_rating} comparison={dr} />
+                    <CompetitorCell value={c.organic_traffic} comparison={traffic} />
+                    <CompetitorCell value={c.organic_keywords} comparison={keywords} />
+                    <CompetitorCell value={c.keywords_top_3} comparison={top3} />
+                    <td className="px-4 py-2 font-mono text-muted-foreground">
+                      {c.est_traffic_value ? `$${c.est_traffic_value.toLocaleString()}` : '—'}
+                      <DeltaBadge comparison={value} />
                     </td>
-                  )}
-                </tr>
+                    <CompetitorCell value={c.referring_domains} comparison={refDomains} />
+                    <td className="px-4 py-2 text-muted-foreground">{c.last_synced_at ? new Date(c.last_synced_at).toLocaleDateString() : 'never'}</td>
+                    {isAdmin && (
+                      <td className="px-4 py-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await fetch(`/api/competitors/${c.id}`, { method: 'DELETE' })
+                            router.refresh()
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                  <CompetitorHistoryRow competitorId={c.id} colSpan={isAdmin ? 9 : 8} />
+                </Fragment>
               )
             })}
             {visibleCompetitors.length === 0 && (

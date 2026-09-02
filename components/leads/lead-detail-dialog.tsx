@@ -8,18 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { getVisibleStages } from '@/lib/leads'
-import type { Lead, LeadBrand, LeadSource, LeadStage, LeadSubmissionFrom } from '@/types'
+import type { Lead, LeadBrand, LeadSourceWithOptions, LeadStage } from '@/types'
 
 type FormState = Omit<Lead, 'id' | 'created_by' | 'updated_by' | 'created_at' | 'updated_at' | 'source'>
 
 const BRANDS: { value: LeadBrand; label: string }[] = [
   { value: 'workagentic', label: 'WorkAgentic' },
   { value: 'expertise_accelerated', label: 'Expertise Accelerated' },
-]
-const SUBMISSION_OPTIONS: { value: LeadSubmissionFrom; label: string }[] = [
-  { value: 'book_a_consultation', label: 'Book A Consultation' },
-  { value: 'contact_form', label: 'Contact Form' },
-  { value: 'chat', label: 'Chat' },
 ]
 
 function toFormState(lead: Lead): FormState {
@@ -39,7 +34,7 @@ function toFormState(lead: Lead): FormState {
     employee_size: lead.employee_size,
     source_id: lead.source_id,
     point_of_contact: lead.point_of_contact,
-    submission_from: lead.submission_from,
+    submission_from_id: lead.submission_from_id,
     intro_call_date: lead.intro_call_date,
     intro_call_status: lead.intro_call_status,
     intro_call_meeting_minutes: lead.intro_call_meeting_minutes,
@@ -70,7 +65,7 @@ export function LeadDetailDialog({
   onClose,
 }: {
   lead: Lead | null
-  sources: LeadSource[]
+  sources: LeadSourceWithOptions[]
   onClose: () => void
 }) {
   const [form, setForm] = useState<FormState | null>(lead ? toFormState(lead) : null)
@@ -92,7 +87,7 @@ export function LeadDetailDialog({
         ? {
             ...f,
             source_id: value || null,
-            submission_from: nextSource?.requires_submission_from ? f.submission_from : null,
+            submission_from_id: nextSource?.requires_submission_from ? f.submission_from_id : null,
           }
         : f
     )
@@ -133,7 +128,7 @@ export function LeadDetailDialog({
         employee_size: form.employee_size || null,
         source_id: form.source_id || null,
         point_of_contact: form.point_of_contact || null,
-        submission_from: form.submission_from || null,
+        submission_from_id: form.submission_from_id || null,
         intro_call_date: form.intro_call_date || null,
         intro_call_status: form.intro_call_status || null,
         intro_call_meeting_minutes: form.intro_call_meeting_minutes || null,
@@ -265,12 +260,12 @@ export function LeadDetailDialog({
                 <Label htmlFor="detail_submission_from">Submission from</Label>
                 <select
                   id="detail_submission_from"
-                  value={form.submission_from ?? ''}
-                  onChange={(e) => set('submission_from', e.target.value as LeadSubmissionFrom)}
+                  value={form.submission_from_id ?? ''}
+                  onChange={(e) => set('submission_from_id', e.target.value)}
                   className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                 >
                   <option value="">—</option>
-                  {SUBMISSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {selectedSource.submission_options.filter((o) => o.is_active).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
               </div>
             )}

@@ -2,8 +2,16 @@ import { buildScorecardRows } from '@/lib/scorecard'
 import { RagBadge } from '@/components/dashboard/rag-badge'
 import type { MetricSnapshot, QuarterTarget } from '@/types'
 
-export function ScorecardTable({ snapshot, target }: { snapshot: MetricSnapshot | null; target: QuarterTarget }) {
-  const rows = buildScorecardRows(snapshot, target)
+export function ScorecardTable({
+  snapshot,
+  target,
+  accountabilityMap,
+}: {
+  snapshot: MetricSnapshot | null
+  target: QuarterTarget
+  accountabilityMap: Record<string, string[]>
+}) {
+  const rows = buildScorecardRows(snapshot, target, accountabilityMap)
 
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card">

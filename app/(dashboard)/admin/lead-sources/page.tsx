@@ -1,11 +1,14 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { LeadSourceForm } from '@/components/admin/lead-source-form'
-import { LeadSourceToggle } from '@/components/admin/lead-source-toggle'
-import type { LeadSource } from '@/types'
+import { LeadSourceRow } from '@/components/admin/lead-source-row'
+import type { LeadSourceWithOptions } from '@/types'
 
 export default async function AdminLeadSourcesPage() {
   const supabase = await createServerSupabaseClient()
-  const { data } = await supabase.from('lead_sources').select('*').order('name')
+  const { data } = await supabase
+    .from('lead_sources')
+    .select('*, submission_options:lead_source_submission_options(id, source_id, label, is_active, created_at)')
+    .order('name')
 
   return (
     <div className="space-y-6">
@@ -18,19 +21,12 @@ export default async function AdminLeadSourcesPage() {
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Requires Submission From</th>
               <th className="px-4 py-2">Active</th>
+              <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {((data as LeadSource[]) ?? []).map((s) => (
-              <tr key={s.id} className="hover:bg-muted/50">
-                <td className="px-4 py-2 text-foreground">{s.name}</td>
-                <td className="px-4 py-2">
-                  <LeadSourceToggle id={s.id} field="requires_submission_from" value={s.requires_submission_from} />
-                </td>
-                <td className="px-4 py-2">
-                  <LeadSourceToggle id={s.id} field="is_active" value={s.is_active} />
-                </td>
-              </tr>
+            {((data as LeadSourceWithOptions[]) ?? []).map((s) => (
+              <LeadSourceRow key={s.id} source={s} />
             ))}
           </tbody>
         </table>

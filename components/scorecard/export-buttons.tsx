@@ -8,13 +8,15 @@ export function ExportButtons({
   snapshot,
   target,
   quarterLabel,
+  accountabilityMap,
 }: {
   snapshot: MetricSnapshot | null
   target: QuarterTarget
   quarterLabel: string
+  accountabilityMap: Record<string, string[]>
 }) {
   function handleExportCsv() {
-    const rows = buildScorecardRows(snapshot, target)
+    const rows = buildScorecardRows(snapshot, target, accountabilityMap)
     const csv = scorecardRowsToCsv(rows, quarterLabel)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)

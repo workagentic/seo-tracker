@@ -6,19 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
-import type { LeadBrand, LeadSource, LeadSubmissionFrom } from '@/types'
+import type { LeadBrand, LeadSourceWithOptions } from '@/types'
 
 const BRANDS: { value: LeadBrand; label: string }[] = [
   { value: 'workagentic', label: 'WorkAgentic' },
   { value: 'expertise_accelerated', label: 'Expertise Accelerated' },
 ]
-const SUBMISSION_OPTIONS: { value: LeadSubmissionFrom; label: string }[] = [
-  { value: 'book_a_consultation', label: 'Book A Consultation' },
-  { value: 'contact_form', label: 'Contact Form' },
-  { value: 'chat', label: 'Chat' },
-]
 
-export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
+export function NewLeadDialog({ sources }: { sources: LeadSourceWithOptions[] }) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
@@ -33,7 +28,7 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
     employee_size: '',
     source_id: '',
     point_of_contact: '',
-    submission_from: '' as LeadSubmissionFrom | '',
+    submission_from_id: '',
   })
   const router = useRouter()
 
@@ -46,11 +41,12 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
     setForm((f) => ({
       ...f,
       source_id: value,
-      submission_from: nextSource?.requires_submission_from ? f.submission_from : '',
+      submission_from_id: nextSource?.requires_submission_from ? f.submission_from_id : '',
     }))
   }
 
   const selectedSource = sources.find((s) => s.id === form.source_id)
+  const submissionOptions = selectedSource?.submission_options.filter((o) => o.is_active) ?? []
 
   async function handleSubmit() {
     setSubmitting(true)
@@ -63,7 +59,7 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
           revenue: form.revenue ? Number(form.revenue) : null,
           brand: form.brand || null,
           source_id: form.source_id || null,
-          submission_from: form.submission_from || null,
+          submission_from_id: form.submission_from_id || null,
         }),
       })
       if (!res.ok) {
@@ -157,15 +153,15 @@ export function NewLeadDialog({ sources }: { sources: LeadSource[] }) {
           </div>
           {selectedSource?.requires_submission_from && (
             <div className="space-y-1">
-              <Label htmlFor="submission_from">Submission from</Label>
+              <Label htmlFor="submission_from_id">Submission from</Label>
               <select
-                id="submission_from"
-                value={form.submission_from}
-                onChange={(e) => set('submission_from', e.target.value as LeadSubmissionFrom)}
+                id="submission_from_id"
+                value={form.submission_from_id}
+                onChange={(e) => set('submission_from_id', e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
               >
                 <option value="">—</option>
-                {SUBMISSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {submissionOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </div>
           )}

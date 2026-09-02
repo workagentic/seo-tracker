@@ -9,6 +9,7 @@ const TABS = [
   { key: 'competitors', label: 'Competitor Comparison' },
   { key: 'ga4', label: 'Web Analytics (GA4)' },
   { key: 'clarity', label: 'Clarity' },
+  { key: 'history', label: 'History' },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -19,9 +20,10 @@ export function DashboardTabs({
   competitors,
   ga4,
   clarity,
+  history,
 }: Record<TabKey, ReactNode>) {
   const [active, setActive] = useState<TabKey>('targets')
-  const sections: Record<TabKey, ReactNode> = { targets, trends, competitors, ga4, clarity }
+  const sections: Record<TabKey, ReactNode> = { targets, trends, competitors, ga4, clarity, history }
 
   return (
     <div>

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       employee_size: body.employee_size || null,
       source_id: body.source_id || null,
       point_of_contact: body.point_of_contact || null,
-      submission_from: body.submission_from || null,
+      submission_from_id: body.submission_from_id || null,
       created_by: profile.id,
       updated_by: profile.id,
     } as never)

@@ -10,6 +10,7 @@ const ADMIN_TABS = [
   { href: '/admin/sync', label: 'Sync' },
   { href: '/admin/settings', label: 'Settings' },
   { href: '/admin/lead-sources', label: 'Lead Sources' },
+  { href: '/admin/task-categories', label: 'Task Categories' },
 ]
 
 export function AdminTabs() {

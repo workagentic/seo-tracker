@@ -4,7 +4,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { NewLeadDialog } from '@/components/leads/new-lead-dialog'
 import { LeadsFilters } from '@/components/leads/leads-filters'
 import { LeadsPageClient } from '@/components/leads/leads-page-client'
-import type { Lead, LeadSource } from '@/types'
+import type { Lead, LeadSourceWithOptions } from '@/types'
 
 export default async function LeadsPage({
   searchParams,
@@ -28,16 +28,19 @@ export default async function LeadsPage({
   if (params.source) query = query.eq('source_id', params.source)
 
   const { data: leads } = await query
-  const { data: sources } = await supabase.from('lead_sources').select('*').order('name')
+  const { data: sources } = await supabase
+    .from('lead_sources')
+    .select('*, submission_options:lead_source_submission_options(id, source_id, label, is_active, created_at)')
+    .order('name')
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Leads</h1>
-        <NewLeadDialog sources={(sources as LeadSource[]) ?? []} />
+        <NewLeadDialog sources={(sources as LeadSourceWithOptions[]) ?? []} />
       </div>
-      <LeadsFilters sources={(sources as LeadSource[]) ?? []} />
-      <LeadsPageClient leads={(leads as Lead[]) ?? []} sources={(sources as LeadSource[]) ?? []} />
+      <LeadsFilters sources={(sources as LeadSourceWithOptions[]) ?? []} />
+      <LeadsPageClient leads={(leads as Lead[]) ?? []} sources={(sources as LeadSourceWithOptions[]) ?? []} />
     </div>
   )
 }

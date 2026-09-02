@@ -602,7 +602,10 @@ needed since the API above works.
 **Layout:** Header (quarter label, target date, last sync, Sync button) always visible, then
 a tabbed body (`DashboardTabs`, client-side state — no route change, instant switching)
 added 29 Aug 2026: **Targets** (the 12 stat tiles), **Trends** (the three line/bar charts),
-**Competitor Comparison**, **Web Analytics (GA4)**, **Clarity**.
+**Competitor Comparison**, **Web Analytics (GA4)**, **Clarity**, and **History** (added 2 Sep
+2026, Section 14 Phase 6) — a scrollable feed (`SnapshotHistoryFeed`), one card per
+`metric_snapshots` row, newest first, all 12 KPIs with a week-over-week delta vs. the prior
+row (`lib/snapshot-history.ts`'s `buildMetricHistory`, unit-tested).
 
 **Stat tiles — one per metric:**
 
@@ -869,7 +872,9 @@ since 1 Sep 2026 the whole 92-task September sprint fills this window — see Se
 
 **Purpose:** Section 11.4 — the RAG scorecard filled in at each quarter-end.
 
-**Layout:** Quarter selector at top (Baseline / Q1 / Q2 / Q3 / Q4 / Q5). Defaults to most recent quarter.
+**Layout:** Quarter selector at top (options come from the live `quarterly_targets` map, Section
+14 Phase 1). Selection persists per browser via `localStorage` (implemented 2 Sep 2026, Section
+14 Phase 5, same pattern as the Task Tracker's filters) until a different quarter is picked.
 
 **Scorecard table columns:**
 - Critical Statistic
@@ -880,11 +885,35 @@ since 1 Sep 2026 the whole 92-task September sprint fills this window — see Se
 - Accountable Owner (from accountability map — see Section 10)
 
 **Edit Targets (`/scorecard/edit`, admin only — implemented 28 Aug 2026):** a link on
-`/scorecard` visible only to `admin`. Lets an admin correct any quarter's target numbers
-(all 12 metrics) without a code deploy — `PATCH /api/admin/targets`. Does **not** edit
-Actual values (those still come from `/admin/metrics` or a sync); this only changes what
-"on target" means. Target and Actual are intentionally kept separate — see Section 12
-note 11.
+`/scorecard` visible only to `admin` (already was, before Phase 5 asked to confirm/restrict
+this — no code change needed, just verified). Lets an admin correct any quarter's target
+numbers (all 12 metrics) without a code deploy — `PATCH /api/admin/targets`. Does **not** edit
+Actual values (those still come from `/admin/metrics` or the two syncs below); this only
+changes what "on target" means. Target and Actual are intentionally kept separate — see
+Section 12 note 11. The same `/scorecard/edit` page also has an **Accountable Owners** section
+(implemented 2 Sep 2026, Section 14 Phase 5) — `metric_accountability` table (migration
+`0027_metric_accountability.sql`) replaces the hardcoded `ACCOUNTABILITY_MAP` constant in
+`lib/constants.ts` (still the seed/fallback if the table is empty, same pattern as
+`quarterly_targets`); each of the 12 KPIs gets a comma-separated names field, admin-only to
+edit via `PATCH /api/admin/accountability`.
+
+**Actual/Variance auto-sync — implemented 2 Sep 2026 (Section 14 Phase 5,
+`POST /api/scorecard/sync-actuals`).** A "Sync Actuals" button on `/scorecard`, visible to
+`admin` plus **Najma Furqan and Tabish Khalid by name** (`lib/scorecard.ts`'s
+`canSyncScorecardActuals` — a named exception to the role system, since Najma/Tabish are
+`role = 'owner'`, not `admin`). Fixed source priority per Abdullah: **GSC-sourced**
+(`lib/gsc/scorecard.ts`'s `computeGscScorecardMetrics`, aggregating a `dimensions=['query',
+'page']` `searchAnalytics.query` pull, plus a second US-country-filtered pull reusing the same
+Global/US split pattern as Ahrefs) — Organic Traffic Global/US (sum of clicks), Organic
+Keywords Global/US (distinct queries with any clicks/impressions), Keywords Top 3/Top 10
+(distinct queries whose best position across pages falls in that band), and Indexed Content
+Pages (distinct pages with any impressions in the window — a proxy, since this integration has
+no separate Index Coverage API call). **GA4 is not a source** — none of the 12 KPIs map
+cleanly to session/user data. **Ahrefs is the fallback** for the rest — Domain Rating, Traffic
+Value Monthly, Referring Domains Total, Avg Keywords per Page — reusing the same
+`fetchAhrefsMetrics` the main Ahrefs sync calls. Referring Domains Quality stays manual-only,
+untouched (existing rule). Patches today's `metric_snapshots` row, same pattern as
+`/api/sync/ahrefs`.
 
 **RAG thresholds (from Section 11.4 of strategy doc):**
 - 🟢 Green — actual ≥ 95% of target
@@ -922,7 +951,11 @@ and the on-screen table can't drift apart.
   green/▲ (EA is ahead). Fixed 29 Aug 2026 — the first version had this inverted (showed the
   competitor's own gain/loss, so a competitor far ahead of EA read as a green "win").
 - Weekly history is captured automatically into `competitor_snapshots` (Section 5.11) by the
-  weekly cron (Section 8.9) — no trend chart built on top of it yet.
+  weekly cron (Section 8.9). **Viewable — implemented 2 Sep 2026 (Section 14 Phase 6):** a
+  "Show history" toggle per competitor row (`CompetitorHistoryRow`, fetched on demand via
+  `GET /api/competitors/[id]/snapshots`, not preloaded for every competitor up front) expands
+  a scrollable feed of that competitor's snapshots, newest first, each with a week-over-week
+  delta vs. the prior one (`lib/snapshot-history.ts`'s `buildCompetitorHistory`, unit-tested).
 
 **Add/Edit competitor:** Admin only. Modal form — company name, domain. Ahrefs data auto-populated on next sync.
 
@@ -1020,11 +1053,19 @@ on the page.
 Accessible only to `admin` role (Abdullah Shekha).
 
 **Sub-pages:**
-- `/admin/users` — Create, edit, deactivate user accounts. Set role. Cannot delete (soft deactivate only). **Implemented.**
-- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh, GA4 sync, and Clarity sync are all also implemented, but all three trigger elsewhere: GSC's button is on `/keywords` (Section 8.6), GA4's and Clarity's are on `/dashboard` (Section 8.2).
+- `/admin/users` — Create, edit (name/role/job title), lock (`is_active` toggle), and **delete**
+  (added 2 Sep 2026, Section 14 Phase 4 — `DELETE /api/admin/users/[id]`, deletes the auth user
+  and cascades to `profiles`; blocked with a friendly error if the profile is still referenced
+  by tasks/leads/etc., same safety-net pattern as deleting a lead source or task category;
+  can't delete your own account). The stale "only one admin user allowed" check on user
+  creation (superseded by Section 12.10's 28 Aug 2026 multi-admin change but never removed from
+  the code) was also removed as part of this pass — it would have wrongly blocked adding a 4th
+  admin. **Implemented.**
+- `/admin/sync` — Trigger manual Ahrefs sync (also triggerable from `/dashboard`), view `sync_logs`. **Implemented for Ahrefs.** GSC keyword-refresh, GA4 sync, and Clarity sync are all also implemented, but all three trigger elsewhere: GSC's button is on `/keywords` (Section 8.6), GA4's and Clarity's are on `/dashboard` (Section 8.2). The Scorecard's own Actual/Variance sync (Section 8.4) triggers from `/scorecard` instead, and is restricted to admin + Najma Furqan + Tabish Khalid by name, not admin/head like every sync here.
 - `/admin/metrics` — Manually enter or correct a quarterly metric snapshot. Required for "quality referring domains" (this requires manual census, not API). **Implemented** — patches the existing same-day snapshot rather than inserting a duplicate, so it merges with whatever the day's Ahrefs sync already wrote.
 - `/admin/settings` — Ahrefs target domain (used by `/api/sync/ahrefs`), plus GSC site URL / GA4 property ID (both now actually used — Section 7.2/7.3). **Implemented**, except quarter start/end dates, which intentionally stay in `lib/constants.ts` (Section 9.3) and are shown read-only here.
-- `/admin/lead-sources` — Manages the extensible lead-source list used by the Leads Kanban board (Section 8.10): add a source, deactivate one, and toggle whether it requires the Submission From field. **Implemented.**
+- `/admin/lead-sources` — Manages the extensible lead-source list used by the Leads Kanban board (Section 8.10): add a source, deactivate one, and toggle whether it requires the Submission From field, plus (added 2 Sep 2026, Section 14 Phase 4) **edit the source's name**, **delete the source** (blocked with a friendly error if leads still reference it), and manage that source's own **Submission From options** — an expandable "Options (N)" panel per row backed by the new `lead_source_submission_options` table (migration `0026_lead_source_submission_options.sql`), replacing the old hardcoded global 3-value enum (`leads.submission_from` → `submission_from_id`, an FK). **Implemented.**
+- `/admin/task-categories` — added 2 Sep 2026 (Section 14 Phase 4). Admin CRUD (add/edit/delete) over `task_categories` (table + 11 seed values created in Phase 2, migration `0024_task_ownership_rebuild.sql`) — this tab is the UI Phase 2 deferred. **Implemented.**
 
 Admin sub-pages render as tabs under a shared `app/(dashboard)/admin/layout.tsx` (`/admin`
 redirects to `/admin/users`) rather than as separate unlinked pages.
@@ -1048,7 +1089,9 @@ per-stage fields are edited via `LeadDetailDialog`, which shows sections for eve
 and including the lead's current one (`lib/leads.ts`'s `getVisibleStages`, unit-tested).
 Lead sources are admin-editable from `/admin/lead-sources` — each source has a
 `requires_submission_from` flag (not a hardcoded "Direct or SEO" check) driving whether the
-Submission From field shows on a lead. Filters: date range (on `lead_date`), Brand, Source, as
+Submission From field shows on a lead, and (since 2 Sep 2026, Section 14 Phase 4) its own
+admin-editable list of Submission From options (`lead_source_submission_options`) instead of a
+shared hardcoded 3-value enum. Filters: date range (on `lead_date`), Brand, Source, as
 URL params, matching `TaskFilters`. Out of scope for this pass: no notifications, no
 Realtime/live-sync wiring, no CSV import/export (spec Section 8).
 
@@ -1712,7 +1755,8 @@ manual application via the Supabase SQL editor.** Task Tracker UI overhaul (depe
   widen to 80% of screen width** — the general rule Abdullah gave, distinct from the
   task-panel's own 50% spec above.
 
-**Phase 4 — Admin panel enhancements:**
+**Phase 4 — ✅ done (2 Sep 2026), migration `0026_lead_source_submission_options.sql` still
+needs manual application via the Supabase SQL editor.** Admin panel enhancements:
 - Lead Sources: the Submission From **options themselves become admin-editable** (not the
   current hardcoded "Book A Consultation / Contact Form / Chat" enum) — needs a new child
   table (e.g. `lead_source_submission_options`, FK'd to `lead_sources`), and
@@ -1725,7 +1769,8 @@ manual application via the Supabase SQL editor.** Task Tracker UI overhaul (depe
 - (`task_categories` admin CRUD UI is part of Phase 4 even though the table itself is created
   in Phase 2.)
 
-**Phase 5 — Scorecard enhancements:**
+**Phase 5 — ✅ done (2 Sep 2026), migration `0027_metric_accountability.sql` still needs
+manual application via the Supabase SQL editor.** Scorecard enhancements:
 - "Edit Targets" restricted to **admin only** (currently broader).
 - **Accountable Owner becomes admin-editable** — `ACCOUNTABILITY_MAP` (currently a hardcoded
   constant in `lib/constants.ts`) needs to move to a DB-backed, admin-editable table.
@@ -1741,7 +1786,8 @@ manual application via the Supabase SQL editor.** Task Tracker UI overhaul (depe
 - **Sync features restricted to admins plus Najma Furqan and Tabish Khalid by name**
   (not role-based — Najma/Tabish are `role = 'owner'`, not `admin`).
 
-**Phase 6 — Dashboard + Competitors weekly-snapshot scroll views:**
+**Phase 6 — ✅ done (2 Sep 2026), no migration needed (reads existing `metric_snapshots`/
+`competitor_snapshots` data).** Dashboard + Competitors weekly-snapshot scroll views:
 - New scrollable feed on `/dashboard`: one card per Monday snapshot (the weekly cron already
   captures this data), newest first, showing all 12 KPI values + week-over-week change.
 - Same pattern on `/competitors`, per competitor.
@@ -1764,6 +1810,14 @@ manual application via the Supabase SQL editor.** Task Tracker UI overhaul (depe
 - @ mention autocomplete (Section 8.3) matches on plain text after the last `@` in the
   comment draft, not true cursor position — a deliberate simplification, not a bug, but worth
   knowing if it ever feels wrong while typing mid-message.
+- Scorecard's "Indexed Content Pages" GSC-sourced value (Section 8.4 Phase 5) is a proxy —
+  distinct pages with any impressions in the trailing-90-day window — not a true Index
+  Coverage count, since this integration only ever called `searchAnalytics.query` (Section
+  7.2), never a separate coverage API.
+- Weekly-snapshot history feeds (Section 8.2/8.5, Phase 6) show one card per existing
+  `metric_snapshots`/`competitor_snapshots` row rather than a dedicated "was this the weekly
+  cron" flag — the schema has no such flag, so this reads whatever's there. In practice that's
+  whatever the weekly cron (and any other sync) has written.
 
 ---
 

@@ -1,6 +1,14 @@
 import { calculateRAG } from '@/lib/rag'
-import { ACCOUNTABILITY_MAP } from '@/lib/constants'
-import type { MetricKey, MetricSnapshot, QuarterTarget, RAGStatus } from '@/types'
+import type { MetricKey, MetricSnapshot, Profile, QuarterTarget, RAGStatus } from '@/types'
+
+// Named exception to the role system (CLAUDE.md Section 14 Phase 5): the Scorecard's new
+// Actual/Variance auto-sync is restricted to admins plus these 2 people specifically, by
+// name -- not role-based, since Najma/Tabish are role='owner', not 'admin'.
+const SCORECARD_SYNC_NAMES = ['Najma Furqan', 'Tabish Khalid']
+
+export function canSyncScorecardActuals(profile: Pick<Profile, 'role' | 'full_name'>): boolean {
+  return profile.role === 'admin' || SCORECARD_SYNC_NAMES.includes(profile.full_name)
+}
 
 export const SCORECARD_ROWS: { key: MetricKey; label: string }[] = [
   { key: 'domain_rating', label: 'Domain Rating' },
@@ -28,7 +36,11 @@ export interface ScorecardRow {
   owners: string[]
 }
 
-export function buildScorecardRows(snapshot: MetricSnapshot | null, target: QuarterTarget): ScorecardRow[] {
+export function buildScorecardRows(
+  snapshot: MetricSnapshot | null,
+  target: QuarterTarget,
+  accountabilityMap: Record<string, string[]>
+): ScorecardRow[] {
   return SCORECARD_ROWS.map((row) => {
     const actual = snapshot?.[row.key] ?? null
     const targetValue = target[row.key]
@@ -40,7 +52,7 @@ export function buildScorecardRows(snapshot: MetricSnapshot | null, target: Quar
       variance: actual !== null ? actual - targetValue : null,
       variancePct: actual !== null ? ((actual - targetValue) / targetValue) * 100 : null,
       ragStatus: calculateRAG(actual, targetValue),
-      owners: ACCOUNTABILITY_MAP[row.key] ?? [],
+      owners: accountabilityMap[row.key] ?? [],
     }
   })
 }

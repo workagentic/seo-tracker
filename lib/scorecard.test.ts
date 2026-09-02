@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildScorecardRows, scorecardRowsToCsv } from './scorecard'
+import { ACCOUNTABILITY_MAP } from './constants'
 import type { MetricSnapshot, QuarterTarget } from '@/types'
 
 function makeSnapshot(overrides: Partial<MetricSnapshot>): MetricSnapshot {
@@ -25,7 +26,7 @@ const TARGET: QuarterTarget = {
 
 describe('buildScorecardRows', () => {
   it('computes variance, variance %, and RAG status per row', () => {
-    const rows = buildScorecardRows(makeSnapshot({}), TARGET)
+    const rows = buildScorecardRows(makeSnapshot({}), TARGET, ACCOUNTABILITY_MAP)
     const dr = rows.find((r) => r.key === 'domain_rating')!
     expect(dr).toMatchObject({ target: 25, actual: 25, variance: 0, variancePct: 0, ragStatus: 'green' })
 
@@ -35,12 +36,12 @@ describe('buildScorecardRows', () => {
   })
 
   it('returns null actual/variance and no-data status when there is no snapshot', () => {
-    const rows = buildScorecardRows(null, TARGET)
+    const rows = buildScorecardRows(null, TARGET, ACCOUNTABILITY_MAP)
     expect(rows.every((r) => r.actual === null && r.variance === null && r.ragStatus === 'no-data')).toBe(true)
   })
 
   it('includes accountable owners from ACCOUNTABILITY_MAP', () => {
-    const rows = buildScorecardRows(makeSnapshot({}), TARGET)
+    const rows = buildScorecardRows(makeSnapshot({}), TARGET, ACCOUNTABILITY_MAP)
     const refDomains = rows.find((r) => r.key === 'referring_domains_quality')!
     expect(refDomains.owners).toEqual(['Syed Ali'])
   })
@@ -48,7 +49,7 @@ describe('buildScorecardRows', () => {
 
 describe('scorecardRowsToCsv', () => {
   it('produces a title line, header row, and one row per metric', () => {
-    const rows = buildScorecardRows(makeSnapshot({}), TARGET)
+    const rows = buildScorecardRows(makeSnapshot({}), TARGET, ACCOUNTABILITY_MAP)
     const csv = scorecardRowsToCsv(rows, 'Q1')
     const lines = csv.split('\n')
 
@@ -59,7 +60,7 @@ describe('scorecardRowsToCsv', () => {
   })
 
   it('quotes cells containing commas', () => {
-    const rows = buildScorecardRows(makeSnapshot({}), TARGET)
+    const rows = buildScorecardRows(makeSnapshot({}), TARGET, ACCOUNTABILITY_MAP)
     const csv = scorecardRowsToCsv(rows, 'Q1')
     const drLine = csv.split('\n').find((l) => l.includes('Referring Domains (Total)'))
     // owners for referring_domains_total is ['Syed Ali'] -> no comma, but confirm the row exists and is well-formed
