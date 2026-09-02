@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
-import { LeadsBoard } from '@/components/leads/leads-board'
+import { LeadsPageClient } from '@/components/leads/leads-page-client'
 import { NewLeadDialog } from '@/components/leads/new-lead-dialog'
 import type { Lead, LeadSource } from '@/types'
 
@@ -23,7 +23,7 @@ export default async function LeadsPage() {
         <h1 className="text-xl font-semibold text-foreground">Leads</h1>
         <NewLeadDialog sources={(sources as LeadSource[]) ?? []} />
       </div>
-      <LeadsBoard leads={(leads as Lead[]) ?? []} onOpenLead={() => {}} />
+      <LeadsPageClient leads={(leads as Lead[]) ?? []} />
     </div>
   )
 }
