@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DndContext, useDroppable, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { LEAD_STAGES } from '@/lib/leads'
 import { LeadCard } from './lead-card'
 import type { Lead, LeadStage } from '@/types'
@@ -35,6 +35,11 @@ function Column({ stage, label, leads, onCardClick }: {
 export function LeadsBoard({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (lead: Lead) => void }) {
   const [items, setItems] = useState(leads)
   const router = useRouter()
+  // Without an activation constraint, dnd-kit's PointerSensor arms a drag (and swallows the
+  // subsequent click event) on every pointerdown, including a plain click with no movement --
+  // which meant card clicks could never open the detail dialog. Requiring 8px of movement
+  // before a drag "activates" lets a plain click through as a click.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   // Keep local drag state in sync when the server data changes underneath us (filters, or a
   // refresh after the detail dialog saves).
@@ -63,7 +68,7 @@ export function LeadsBoard({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4">
         {LEAD_STAGES.map((s) => (
           <Column
