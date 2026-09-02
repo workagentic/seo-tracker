@@ -23,8 +23,45 @@ const SUBMISSION_OPTIONS: { value: LeadSubmissionFrom; label: string }[] = [
 ]
 
 function toFormState(lead: Lead): FormState {
-  const { id: _id, created_by: _cb, updated_by: _ub, created_at: _ca, updated_at: _ua, source: _s, ...rest } = lead
-  return rest
+  // Explicit field list rather than a rest-destructure (this project's ESLint config doesn't
+  // set ignoreRestSiblings, so `const { id: _id, ... } = lead` fails no-unused-vars). This is
+  // also stricter: TypeScript errors here if FormState's shape ever drifts from Lead's.
+  return {
+    stage: lead.stage,
+    lead_date: lead.lead_date,
+    full_name: lead.full_name,
+    company_name: lead.company_name,
+    email: lead.email,
+    phone_number: lead.phone_number,
+    revenue: lead.revenue,
+    service_needed: lead.service_needed,
+    brand: lead.brand,
+    employee_size: lead.employee_size,
+    source_id: lead.source_id,
+    point_of_contact: lead.point_of_contact,
+    submission_from: lead.submission_from,
+    intro_call_date: lead.intro_call_date,
+    intro_call_status: lead.intro_call_status,
+    intro_call_meeting_minutes: lead.intro_call_meeting_minutes,
+    intro_call_email_sent: lead.intro_call_email_sent,
+    followup_1_scheduled_date: lead.followup_1_scheduled_date,
+    followup_1_date: lead.followup_1_date,
+    followup_1_notes: lead.followup_1_notes,
+    followup_1_email_sent: lead.followup_1_email_sent,
+    followup_2_scheduled_date: lead.followup_2_scheduled_date,
+    followup_2_date: lead.followup_2_date,
+    followup_2_notes: lead.followup_2_notes,
+    followup_2_email_sent: lead.followup_2_email_sent,
+    followup_3_scheduled_date: lead.followup_3_scheduled_date,
+    followup_3_date: lead.followup_3_date,
+    followup_3_notes: lead.followup_3_notes,
+    followup_3_email_sent: lead.followup_3_email_sent,
+    won_date: lead.won_date,
+    won_notes: lead.won_notes,
+    conversion_value: lead.conversion_value,
+    lost_date: lead.lost_date,
+    lost_notes: lead.lost_notes,
+  }
 }
 
 export function LeadDetailDialog({
