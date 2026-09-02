@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DndContext, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { LEAD_STAGES } from '@/lib/leads'
 import { LeadCard } from './lead-card'
 import type { Lead, LeadStage } from '@/types'
@@ -38,8 +38,15 @@ export function LeadsBoard({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (
   // Without an activation constraint, dnd-kit's PointerSensor arms a drag (and swallows the
   // subsequent click event) on every pointerdown, including a plain click with no movement --
   // which meant card clicks could never open the detail dialog. Requiring 8px of movement
-  // before a drag "activates" lets a plain click through as a click.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  // before a drag "activates" lets a plain click through as a click. KeyboardSensor must be
+  // listed explicitly too: passing an explicit `sensors` array to DndContext replaces
+  // dnd-kit's defaultSensors entirely rather than merging with them, and LeadCard spreads
+  // useDraggable's `{...attributes}` (tabIndex, keyboard activator wiring), so omitting it
+  // here would silently break keyboard drag-and-drop.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
+  )
 
   // Keep local drag state in sync when the server data changes underneath us (filters, or a
   // refresh after the detail dialog saves).
