@@ -26,7 +26,7 @@ export function TaskFilters({ owners }: { owners: Pick<Profile, 'id' | 'full_nam
       </select>
       <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)}>
         <option value="">All statuses</option>
-        {['pending', 'in_progress', 'completed', 'blocked', 'overdue', 'submitted_for_review', 'changes_requested'].map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+        {['pending', 'in_progress', 'on_hold', 'completed'].map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
       </select>
       <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('owner') ?? ''} onChange={(e) => setParam('owner', e.target.value)}>
         <option value="">All owners</option>

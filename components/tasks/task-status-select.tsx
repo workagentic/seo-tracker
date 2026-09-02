@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -12,11 +11,8 @@ import type { TaskStatus } from '@/types'
 const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: 'pending',
   in_progress: 'in progress',
+  on_hold: 'on hold',
   completed: 'completed',
-  blocked: 'blocked',
-  overdue: 'overdue',
-  submitted_for_review: 'submitted for review',
-  changes_requested: 'changes requested',
 }
 
 async function patchStatus(taskId: string, status: TaskStatus, extra?: Record<string, unknown>) {
@@ -41,9 +37,6 @@ export function TaskStatusSelect({
   linkedFindingTitle?: string | null
 }) {
   const [value, setValue] = useState(status)
-  const [reasonDialogOpen, setReasonDialogOpen] = useState(false)
-  const [reason, setReason] = useState('')
-  const [submittingReason, setSubmittingReason] = useState(false)
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false)
   const [resolving, setResolving] = useState(false)
   const router = useRouter()
@@ -52,11 +45,6 @@ export function TaskStatusSelect({
   const isDisabled = disabled || allowedStatuses.length === 0
 
   async function handleChange(next: TaskStatus) {
-    if (next === 'changes_requested') {
-      setReason('')
-      setReasonDialogOpen(true)
-      return
-    }
     if (next === 'completed' && linkedFindingTitle) {
       setResolveDialogOpen(true)
       return
@@ -64,19 +52,6 @@ export function TaskStatusSelect({
     setValue(next)
     await patchStatus(taskId, next)
     router.refresh()
-  }
-
-  async function submitChangeRequest() {
-    if (!reason.trim()) return
-    setSubmittingReason(true)
-    try {
-      await patchStatus(taskId, 'changes_requested', { change_reason: reason.trim() })
-      setValue('changes_requested')
-      setReasonDialogOpen(false)
-      router.refresh()
-    } finally {
-      setSubmittingReason(false)
-    }
   }
 
   async function completeTask(resolveLinkedFinding: boolean) {
@@ -103,20 +78,6 @@ export function TaskStatusSelect({
           <option key={s} value={s}>{STATUS_LABELS[s]}</option>
         ))}
       </select>
-      <Dialog open={reasonDialogOpen} onOpenChange={setReasonDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Request changes</DialogTitle></DialogHeader>
-          <p className="mb-2 text-sm text-muted-foreground">
-            This reason is required and will be logged to the task&apos;s activity history.
-          </p>
-          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="What needs to change?" />
-          <DialogFooter>
-            <Button disabled={submittingReason || !reason.trim()} onClick={submitChangeRequest}>
-              {submittingReason ? 'Sending…' : 'Send'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Complete task?</DialogTitle></DialogHeader>

@@ -11,14 +11,10 @@ export interface Profile {
   is_active: boolean
 }
 
-export type TaskStatus =
-  | 'pending'
-  | 'in_progress'
-  | 'completed'
-  | 'blocked'
-  | 'overdue'
-  | 'submitted_for_review'
-  | 'changes_requested'
+// 4 values (CLAUDE.md Section 14 Phase 2) -- 'overdue' is no longer stored, it's a computed
+// visual flag (Phase 3); 'blocked' is now 'on_hold'; the approval-workflow statuses
+// ('submitted_for_review'/'changes_requested') are gone along with the approver role itself.
+export type TaskStatus = 'pending' | 'in_progress' | 'on_hold' | 'completed'
 // Bare calendar-quarter label, no year -- see lib/constants.ts's getCurrentQuarter() /
 // CLAUDE.md Section 14 Phase 1. Recurs every year, unlike quarterly_targets.quarter_key which
 // is year-qualified (e.g. 'Q3-2026') to disambiguate targets across years.
@@ -30,13 +26,20 @@ export interface Task {
   title: string
   description: string | null
   position_responsible: string | null
-  assigned_to: string | null
-  co_assigned_to: string | null
-  approver_id: string | null
+  // The person permanently accountable for this task's outcome -- restricted at the app layer
+  // to exactly 3 people (lib/tasks/constants.ts), and the only one who can mark it Completed.
+  // Renamed from the old "Assigned to" field 2 Sep 2026 (CLAUDE.md Section 14 Phase 2).
+  owner_id: string | null
+  // Whoever's doing the hands-on work right now -- open to any profile, changes hands as the
+  // task is routed between people. Replaces Co-Owner.
+  assigned_to_id: string | null
   due_date: string | null
+  // Set whenever the task is handed to a new assigned_to_id; must never be later than
+  // due_date (enforced client-side, API-side, and by a DB CHECK constraint).
+  deadline: string | null
   status: TaskStatus
   quarter: QuarterLabel | 'All' | null
-  category: string | null
+  category_id: string | null
   notes: string | null
   link_url: string | null
   repeats: string | null
@@ -47,11 +50,17 @@ export interface Task {
   created_at: string
   updated_at: string
   updated_by: string | null
-  assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-  co_assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-  approver_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  owner_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  assigned_to_profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  category?: Pick<TaskCategory, 'id' | 'name'> | null
   linked_finding?: Pick<AuditReport, 'id' | 'title' | 'status'> | null
   linked_keyword?: Pick<TrackedKeyword, 'id' | 'keyword'> | null
+}
+
+export interface TaskCategory {
+  id: string
+  name: string
+  created_at: string
 }
 
 export interface TaskActivity {

@@ -8,24 +8,20 @@ import { TaskFormDialog } from './task-form-dialog'
 import { DeleteTaskButton } from './delete-task-button'
 import { TaskHistoryDialog } from './task-history-dialog'
 import { TaskCommentsDialog } from './task-comments-dialog'
+import { TaskReassignDialog } from './task-reassign-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
 import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
 
-const BULK_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'blocked', 'submitted_for_review', 'completed']
-
-function daysAgo(isoTimestamp: string, now: Date): number {
-  const ms = now.getTime() - new Date(isoTimestamp).getTime()
-  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)))
-}
+const BULK_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'on_hold', 'completed']
 
 function sortValue(task: Task, key: string): unknown {
   switch (key) {
     case 'action_number': return task.action_number
     case 'title': return task.title
-    case 'owner': return task.assigned_profile?.full_name ?? null
-    case 'co_owner': return task.co_assigned_profile?.full_name ?? null
+    case 'owner': return task.owner_profile?.full_name ?? null
+    case 'assigned_to': return task.assigned_to_profile?.full_name ?? null
     case 'due_date': return task.next_due ?? task.due_date
     case 'status': return task.status
     default: return null
@@ -37,14 +33,13 @@ function csvCell(value: string): string {
 }
 
 function exportCsv(tasks: Task[]) {
-  const headers = ['Action', 'Title', 'Category', 'Owner', 'Co-owner', 'Approver', 'Due', 'Status']
+  const headers = ['Action', 'Title', 'Category', 'Owner', 'Assigned To', 'Due', 'Status']
   const rows = tasks.map((t) => [
     t.action_number,
     t.title,
-    t.category ?? '',
-    t.assigned_profile?.full_name ?? '',
-    t.co_assigned_profile?.full_name ?? '',
-    t.approver_profile?.full_name ?? '',
+    t.category?.name ?? '',
+    t.owner_profile?.full_name ?? '',
+    t.assigned_to_profile?.full_name ?? '',
     t.next_due ?? t.due_date ?? '',
     t.status,
   ])
@@ -64,12 +59,14 @@ export function TaskList({
   tasks,
   currentProfile,
   owners,
+  categories = [],
   findings = [],
   keywords = [],
 }: {
   tasks: Task[]
   currentProfile: Profile
   owners: { id: string; full_name: string }[]
+  categories?: { id: string; name: string }[]
   findings?: { id: string; title: string }[]
   keywords?: { id: string; keyword: string }[]
 }) {
@@ -105,7 +102,7 @@ export function TaskList({
     let result = tasks
     if (q) {
       result = tasks.filter((t) =>
-        [t.action_number, t.title, t.assigned_profile?.full_name, t.co_assigned_profile?.full_name]
+        [t.action_number, t.title, t.owner_profile?.full_name, t.assigned_to_profile?.full_name]
           .some((v) => v?.toLowerCase().includes(q))
       )
     }
@@ -178,7 +175,7 @@ export function TaskList({
                 size="sm"
                 variant="outline"
                 disabled={bulkBusy || !bulkAssignTo}
-                onClick={() => runBulk({ action: 'reassign', assigned_to: bulkAssignTo })}
+                onClick={() => runBulk({ action: 'reassign', assigned_to_id: bulkAssignTo })}
               >
                 Apply
               </Button>
@@ -228,8 +225,7 @@ export function TaskList({
               <SortableTh label="Action" sortKey="action_number" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Title" sortKey="title" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Owner" sortKey="owner" currentSort={sort} onSort={toggleSort} />
-              <SortableTh label="Co-owner" sortKey="co_owner" currentSort={sort} onSort={toggleSort} />
-              <th className="px-4 py-2">Approver</th>
+              <SortableTh label="Assigned To" sortKey="assigned_to" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Due" sortKey="due_date" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
               <th className="px-4 py-2" />
@@ -241,7 +237,6 @@ export function TaskList({
               const isOverdue = !!effectiveDue && effectiveDue < today && task.status !== 'completed'
               const canEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || canEditTaskStatus(task, currentProfile)
               const allowedStatuses = getAllowedStatuses(task, currentProfile)
-              const waitingDays = task.status === 'submitted_for_review' ? daysAgo(task.updated_at, now) : null
 
               return (
                 <tr
@@ -257,7 +252,7 @@ export function TaskList({
                     {task.title}
                     {task.category && (
                       <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                        {task.category}
+                        {task.category.name}
                       </span>
                     )}
                     {task.link_url && (
@@ -285,27 +280,19 @@ export function TaskList({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-muted-foreground">{task.assigned_profile?.full_name ?? '—'}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{task.co_assigned_profile?.full_name ?? '—'}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{task.approver_profile?.full_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{task.owner_profile?.full_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{task.assigned_to_profile?.full_name ?? '—'}</td>
                   <td className={`px-4 py-2 font-mono ${isOverdue ? 'font-medium text-red-600' : 'text-muted-foreground'}`}>
                     {task.repeats ? `${task.repeats}${task.next_due ? ` · next ${task.next_due}` : ''}` : task.due_date ?? 'Recurring'}
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <TaskStatusSelect
-                        taskId={task.id}
-                        status={task.status}
-                        allowedStatuses={allowedStatuses}
-                        disabled={!canEdit}
-                        linkedFindingTitle={task.linked_finding?.title ?? null}
-                      />
-                      {waitingDays !== null && (
-                        <span className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          {waitingDays === 0 ? 'awaiting approval' : `${waitingDays}d awaiting approval`}
-                        </span>
-                      )}
-                    </div>
+                    <TaskStatusSelect
+                      taskId={task.id}
+                      status={task.status}
+                      allowedStatuses={allowedStatuses}
+                      disabled={!canEdit}
+                      linkedFindingTitle={task.linked_finding?.title ?? null}
+                    />
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex gap-1">
@@ -315,10 +302,19 @@ export function TaskList({
                         actionNumber={task.action_number}
                         canComment={currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'}
                       />
+                      {canEdit && (
+                        <TaskReassignDialog
+                          taskId={task.id}
+                          currentUserId={currentProfile.id}
+                          dueDate={task.due_date}
+                          staff={owners}
+                        />
+                      )}
                       {isAdmin && (
                         <>
                           <TaskFormDialog
                             owners={owners}
+                            categories={categories}
                             findings={findings}
                             keywords={keywords}
                             task={task}
@@ -334,7 +330,7 @@ export function TaskList({
             })}
             {visibleTasks.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   No tasks match your search.
                 </td>
               </tr>

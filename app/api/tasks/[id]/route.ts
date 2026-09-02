@@ -3,6 +3,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { computeTaskActivityEntries } from '@/lib/tasks/activity'
 import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
+import { ELIGIBLE_OWNER_NAMES } from '@/lib/tasks/constants'
 import type { Task, TaskStatus } from '@/types'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +18,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const canEditAny = profile.role === 'admin' || profile.role === 'head'
-  if (!canEditAny && !canEditTaskStatus(task, profile)) {
+  // The task's current Owner or Assigned To (any profile, including leadership -- see
+  // lib/tasks/permissions.ts) can also change status/notes and hand the task on to someone
+  // else, distinct from the admin-only structural-fields gate below.
+  const canEditAssignment = canEditAny || canEditTaskStatus(task, profile)
+  if (!canEditAssignment) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -29,15 +34,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!getAllowedStatuses(task, profile).includes(nextStatus)) {
       return NextResponse.json({ error: `Not allowed to set status to "${nextStatus}"` }, { status: 403 })
     }
-    if (nextStatus === 'changes_requested' && !body.change_reason?.trim()) {
-      return NextResponse.json({ error: 'A reason is required to request changes' }, { status: 400 })
-    }
     allowedFields.status = nextStatus
   }
   if (typeof body.notes === 'string') allowedFields.notes = body.notes
 
-  // Structural fields (everything beyond status/notes) are admin-only, distinct from the
-  // head/owner status-editing permission above.
+  // Reassignment: whoever currently holds the task (owner or assignee) can hand it to someone
+  // else with a new deadline, same as admin/head -- this is the core handoff workflow
+  // (CLAUDE.md Section 14 Phase 2), not an admin-only structural change.
+  if (typeof body.assigned_to_id === 'string' || body.assigned_to_id === null) {
+    allowedFields.assigned_to_id = body.assigned_to_id
+  }
+  if (typeof body.deadline === 'string' || body.deadline === null) {
+    allowedFields.deadline = body.deadline
+  }
+
+  // Structural fields (everything beyond status/notes/assigned_to_id/deadline) are admin-only,
+  // distinct from the owner/assignee editing permission above.
   if (profile.role === 'admin') {
     if (typeof body.action_number === 'string') allowedFields.action_number = body.action_number
     if (typeof body.title === 'string') allowedFields.title = body.title
@@ -45,12 +57,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.position_responsible === 'string' || body.position_responsible === null) {
       allowedFields.position_responsible = body.position_responsible
     }
-    if (typeof body.assigned_to === 'string' || body.assigned_to === null) allowedFields.assigned_to = body.assigned_to
-    if (typeof body.co_assigned_to === 'string' || body.co_assigned_to === null) allowedFields.co_assigned_to = body.co_assigned_to
-    if (typeof body.approver_id === 'string' || body.approver_id === null) allowedFields.approver_id = body.approver_id
+    if (typeof body.owner_id === 'string' || body.owner_id === null) {
+      if (body.owner_id !== null) {
+        const { data: eligible } = await admin.from('profiles').select('id').in('full_name', ELIGIBLE_OWNER_NAMES)
+        const eligibleIds = new Set(((eligible as { id: string }[]) ?? []).map((p) => p.id))
+        if (!eligibleIds.has(body.owner_id)) {
+          return NextResponse.json({ error: 'owner_id must be one of the 3 eligible owners' }, { status: 400 })
+        }
+      }
+      allowedFields.owner_id = body.owner_id
+    }
     if (typeof body.due_date === 'string' || body.due_date === null) allowedFields.due_date = body.due_date
     if (typeof body.quarter === 'string' || body.quarter === null) allowedFields.quarter = body.quarter
-    if (typeof body.category === 'string' || body.category === null) allowedFields.category = body.category
+    if (typeof body.category_id === 'string' || body.category_id === null) allowedFields.category_id = body.category_id
     if (typeof body.link_url === 'string' || body.link_url === null) allowedFields.link_url = body.link_url
     if (typeof body.repeats === 'string' || body.repeats === null) allowedFields.repeats = body.repeats
     if (typeof body.next_due === 'string' || body.next_due === null) allowedFields.next_due = body.next_due
@@ -61,19 +80,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       allowedFields.linked_keyword_id = body.linked_keyword_id
     }
   } else if (
-    body.action_number !== undefined || body.title !== undefined || body.assigned_to !== undefined ||
-    body.co_assigned_to !== undefined || body.approver_id !== undefined || body.due_date !== undefined ||
-    body.quarter !== undefined || body.description !== undefined || body.position_responsible !== undefined ||
-    body.category !== undefined || body.link_url !== undefined || body.repeats !== undefined ||
-    body.next_due !== undefined || body.linked_finding_id !== undefined || body.linked_keyword_id !== undefined
+    body.action_number !== undefined || body.title !== undefined || body.owner_id !== undefined ||
+    body.due_date !== undefined || body.quarter !== undefined || body.description !== undefined ||
+    body.position_responsible !== undefined || body.category_id !== undefined || body.link_url !== undefined ||
+    body.repeats !== undefined || body.next_due !== undefined || body.linked_finding_id !== undefined ||
+    body.linked_keyword_id !== undefined
   ) {
-    return NextResponse.json({ error: 'Only admins can edit task details beyond status/notes' }, { status: 403 })
+    return NextResponse.json({ error: 'Only admins can edit task details beyond status/notes/assignment' }, { status: 403 })
+  }
+
+  // Validate deadline <= due_date using whichever of the two is being set in this request,
+  // falling back to the task's existing value for whichever one isn't.
+  const finalDueDate = 'due_date' in allowedFields ? allowedFields.due_date : task.due_date
+  const finalDeadline = 'deadline' in allowedFields ? allowedFields.deadline : task.deadline
+  if (finalDeadline && finalDueDate && (finalDeadline as string) > (finalDueDate as string)) {
+    return NextResponse.json({ error: 'Deadline cannot be later than the Due date' }, { status: 400 })
   }
 
   const activityEntries = computeTaskActivityEntries(task as unknown as Record<string, unknown>, allowedFields)
-  if (allowedFields.status === 'changes_requested') {
-    activityEntries.push({ field: 'change_request_reason', old_value: null, new_value: String(body.change_reason).trim() })
-  }
 
   if (allowedFields.status === 'completed') allowedFields.completed_at = new Date().toISOString()
   allowedFields.updated_at = new Date().toISOString()
@@ -95,10 +119,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     )
   }
 
-  // Approval-workflow mockup: completing a task linked to an Audit finding offers to resolve
-  // that finding in the same step, catching the exact "task done, finding still open"
-  // mismatch the linking feature exists to prevent. Opt-in via resolve_linked_finding -- the
-  // client only sends it when the task actually has a linked_finding_id.
+  // Completing a task linked to an Audit finding offers to resolve that finding in the same
+  // step, catching the exact "task done, finding still open" mismatch the linking feature
+  // exists to prevent. Opt-in via resolve_linked_finding -- the client only sends it when the
+  // task actually has a linked_finding_id.
   if (allowedFields.status === 'completed' && task.linked_finding_id && body.resolve_linked_finding === true) {
     await admin
       .from('audit_reports')

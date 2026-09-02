@@ -5,8 +5,6 @@ export type NotificationType =
   | 'deadline-soon'
   | 'overdue'
   | 'status-changed'
-  | 'awaiting-your-approval'
-  | 'changes-requested'
   | 'new-comment'
 
 export interface Notification {
@@ -24,9 +22,11 @@ export interface Notification {
 
 const DEADLINE_SOON_DAYS = 3
 export const RECENTLY_CHANGED_HOURS = 48
-// There is no "assigned_at" timestamp (reassignment isn't a built feature yet — CLAUDE.md
-// Section 14) and no dedicated reassignment endpoint, so "newly assigned to me" is
-// approximated via created_at recency, which only fires for genuinely new tasks.
+// There is no "assigned_at" timestamp, so "newly assigned to me" is approximated via
+// created_at recency, which only fires for a genuinely new task. Known gap (CLAUDE.md Section
+// 14 Phase 2): a mid-life reassignment (assigned_to_id changing on an existing task, now a
+// core operation in the new ownership model) doesn't notify the new assignee here -- doing
+// that properly needs task_activity entries in this function's inputs, not just `tasks`.
 const RECENTLY_CREATED_DAYS = 7
 
 function daysFromNow(now: Date, days: number): string {
@@ -47,9 +47,7 @@ export function getNotificationsForUser(
   const recentChangeCutoff = new Date(now.getTime() - RECENTLY_CHANGED_HOURS * 60 * 60 * 1000)
   const recentCreatedCutoff = new Date(now.getTime() - RECENTLY_CREATED_DAYS * 24 * 60 * 60 * 1000)
   const myTaskIds = new Set(
-    tasks
-      .filter((t) => t.assigned_to === userId || t.co_assigned_to === userId || t.approver_id === userId)
-      .map((t) => t.id)
+    tasks.filter((t) => t.owner_id === userId || t.assigned_to_id === userId).map((t) => t.id)
   )
   const taskById = new Map(tasks.map((t) => [t.id, t]))
 
@@ -69,31 +67,8 @@ export function getNotificationsForUser(
   }
 
   for (const task of tasks) {
-    const isMine = task.assigned_to === userId || task.co_assigned_to === userId
-    const isApprover = task.approver_id !== null && task.approver_id === userId
-    if (!isMine && !isApprover) continue
-
-    if (isApprover && task.status === 'submitted_for_review') {
-      notifications.push({
-        type: 'awaiting-your-approval',
-        taskId: task.id,
-        actionNumber: task.action_number,
-        message: `${task.action_number} is awaiting your approval`,
-        key: `awaiting-your-approval:${task.id}:${task.updated_at}`,
-      })
-    }
-
+    const isMine = task.owner_id === userId || task.assigned_to_id === userId
     if (!isMine) continue
-
-    if (task.status === 'changes_requested') {
-      notifications.push({
-        type: 'changes-requested',
-        taskId: task.id,
-        actionNumber: task.action_number,
-        message: `${task.action_number} has changes requested — take another look`,
-        key: `changes-requested:${task.id}:${task.updated_at}`,
-      })
-    }
 
     const notDone = task.status !== 'completed'
     // next_due (recurrence, migration 0018) stands in for due_date once it's set.

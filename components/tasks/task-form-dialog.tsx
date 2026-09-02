@@ -9,19 +9,21 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from '@/components/ui/dialog'
+import { ELIGIBLE_OWNER_NAMES } from '@/lib/tasks/constants'
 import type { Task } from '@/types'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'All']
 
 interface TaskFormDialogProps {
   owners: { id: string; full_name: string }[]
+  categories?: { id: string; name: string }[]
   findings?: { id: string; title: string }[]
   keywords?: { id: string; keyword: string }[]
   task?: Task
   trigger?: React.ReactElement
 }
 
-export function TaskFormDialog({ owners, findings = [], keywords = [], task, trigger }: TaskFormDialogProps) {
+export function TaskFormDialog({ owners, categories = [], findings = [], keywords = [], task, trigger }: TaskFormDialogProps) {
   const isEdit = !!task
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -29,37 +31,48 @@ export function TaskFormDialog({ owners, findings = [], keywords = [], task, tri
     action_number: task?.action_number ?? '',
     title: task?.title ?? '',
     description: task?.description ?? '',
-    assigned_to: task?.assigned_to ?? '',
-    co_assigned_to: task?.co_assigned_to ?? '',
-    approver_id: task?.approver_id ?? '',
+    owner_id: task?.owner_id ?? '',
+    assigned_to_id: task?.assigned_to_id ?? '',
     due_date: task?.due_date ?? '',
+    deadline: task?.deadline ?? '',
     quarter: task?.quarter ?? '',
-    category: task?.category ?? '',
+    category_id: task?.category_id ?? '',
     link_url: task?.link_url ?? '',
     repeats: task?.repeats ?? '',
     next_due: task?.next_due ?? '',
     linked_finding_id: task?.linked_finding_id ?? '',
     linked_keyword_id: task?.linked_keyword_id ?? '',
   })
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+
+  // Owner is restricted to exactly 3 people (CLAUDE.md Section 14 Phase 2) -- a task-level
+  // rule, not a profiles.role gate, so it's filtered from the same full staff list rather than
+  // a separate fetch.
+  const eligibleOwners = owners.filter((o) => (ELIGIBLE_OWNER_NAMES as readonly string[]).includes(o.full_name))
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
   async function handleSubmit() {
+    if (form.deadline && form.due_date && form.deadline > form.due_date) {
+      setError('Deadline cannot be later than the Due date')
+      return
+    }
+    setError(null)
     setSubmitting(true)
     try {
       const payload = {
         action_number: form.action_number,
         title: form.title,
         description: form.description || null,
-        assigned_to: form.assigned_to || null,
-        co_assigned_to: form.co_assigned_to || null,
-        approver_id: form.approver_id || null,
+        owner_id: form.owner_id || null,
+        assigned_to_id: form.assigned_to_id || null,
         due_date: form.due_date || null,
+        deadline: form.deadline || null,
         quarter: form.quarter || null,
-        category: form.category || null,
+        category_id: form.category_id || null,
         link_url: form.link_url || null,
         repeats: form.repeats || null,
         next_due: form.next_due || null,
@@ -117,23 +130,23 @@ export function TaskFormDialog({ owners, findings = [], keywords = [], task, tri
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="assigned_to">Assigned to</Label>
+              <Label htmlFor="owner_id">Owner</Label>
               <select
-                id="assigned_to"
-                value={form.assigned_to ?? ''}
-                onChange={(e) => set('assigned_to', e.target.value)}
+                id="owner_id"
+                value={form.owner_id ?? ''}
+                onChange={(e) => set('owner_id', e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
               >
                 <option value="">—</option>
-                {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                {eligibleOwners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="co_assigned_to">Co-owner</Label>
+              <Label htmlFor="assigned_to_id">Assigned to</Label>
               <select
-                id="co_assigned_to"
-                value={form.co_assigned_to ?? ''}
-                onChange={(e) => set('co_assigned_to', e.target.value)}
+                id="assigned_to_id"
+                value={form.assigned_to_id ?? ''}
+                onChange={(e) => set('assigned_to_id', e.target.value)}
                 className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
               >
                 <option value="">—</option>
@@ -147,22 +160,29 @@ export function TaskFormDialog({ owners, findings = [], keywords = [], task, tri
               <Input id="due_date" type="date" value={form.due_date ?? ''} onChange={(e) => set('due_date', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="category">Category</Label>
-              <Input id="category" value={form.category ?? ''} onChange={(e) => set('category', e.target.value)} placeholder="Service Pages" />
+              <Label htmlFor="deadline">Deadline</Label>
+              <Input
+                id="deadline"
+                type="date"
+                value={form.deadline ?? ''}
+                max={form.due_date || undefined}
+                onChange={(e) => set('deadline', e.target.value)}
+              />
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="approver_id">Approver</Label>
+            <Label htmlFor="category_id">Category</Label>
             <select
-              id="approver_id"
-              value={form.approver_id ?? ''}
-              onChange={(e) => set('approver_id', e.target.value)}
+              id="category_id"
+              value={form.category_id ?? ''}
+              onChange={(e) => set('category_id', e.target.value)}
               className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             >
-              <option value="">— No sign-off required —</option>
-              {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+              <option value="">—</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="space-y-1">
             <Label htmlFor="link_url">Link to review</Label>
             <Input id="link_url" type="url" value={form.link_url ?? ''} onChange={(e) => set('link_url', e.target.value)} placeholder="https://…" />

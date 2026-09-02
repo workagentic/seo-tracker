@@ -28,21 +28,21 @@ describe('computeTaskActivityEntries', () => {
   })
 
   it('treats null and undefined as equal (no entry) but null vs a real value as a change', () => {
-    const current = { assigned_to: null }
-    expect(computeTaskActivityEntries(current, { assigned_to: undefined })).toEqual([])
-    expect(computeTaskActivityEntries(current, { assigned_to: 'user-1' })).toEqual([
-      { field: 'assigned_to', old_value: null, new_value: 'user-1' },
+    const current = { assigned_to_id: null }
+    expect(computeTaskActivityEntries(current, { assigned_to_id: undefined })).toEqual([])
+    expect(computeTaskActivityEntries(current, { assigned_to_id: 'user-1' })).toEqual([
+      { field: 'assigned_to_id', old_value: null, new_value: 'user-1' },
     ])
   })
 
   it('handles multiple changed fields in one call', () => {
     const current = { status: 'pending', notes: 'old note', due_date: '2026-09-01' }
-    const updates = { status: 'blocked', notes: 'new note', due_date: '2026-09-01' }
+    const updates = { status: 'on_hold', notes: 'new note', due_date: '2026-09-01' }
 
     const entries = computeTaskActivityEntries(current, updates)
 
     expect(entries).toEqual([
-      { field: 'status', old_value: 'pending', new_value: 'blocked' },
+      { field: 'status', old_value: 'pending', new_value: 'on_hold' },
       { field: 'notes', old_value: 'old note', new_value: 'new note' },
     ])
   })

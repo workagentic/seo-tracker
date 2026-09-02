@@ -5,11 +5,12 @@ import { computeTaskActivityEntries } from '@/lib/tasks/activity'
 import { getAllowedStatuses } from '@/lib/tasks/permissions'
 import type { Task, TaskStatus } from '@/types'
 
-// Bulk toolbar (Staff Docs/further_recs_mockup.html #4). Two actions: admin-only reassign, and
-// a "set status to" that reuses the same per-row permission logic as the single-task PATCH
-// route (app/api/tasks/[id]/route.ts) -- rows the caller isn't allowed to touch are skipped,
-// not errored, so one forbidden row doesn't block the rest of the batch. changes_requested is
-// excluded: it requires a per-task reason, which doesn't make sense shared across a batch.
+// Bulk toolbar (Staff Docs/further_recs_mockup.html #4). Two actions: admin-only reassign
+// (sets assigned_to_id -- the hands-on-work field, not Owner, which stays restricted to the 3
+// eligible people and isn't a bulk-reassignable field), and a "set status to" that reuses the
+// same per-row permission logic as the single-task PATCH route (app/api/tasks/[id]/route.ts)
+// -- rows the caller isn't allowed to touch are skipped, not errored, so one forbidden row
+// doesn't block the rest of the batch.
 export async function POST(request: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -22,12 +23,12 @@ export async function POST(request: Request) {
 
   if (body.action === 'reassign') {
     if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    if (typeof body.assigned_to !== 'string') {
-      return NextResponse.json({ error: 'assigned_to is required' }, { status: 400 })
+    if (typeof body.assigned_to_id !== 'string') {
+      return NextResponse.json({ error: 'assigned_to_id is required' }, { status: 400 })
     }
     const { data, error } = await admin
       .from('tasks')
-      .update({ assigned_to: body.assigned_to, updated_at: new Date().toISOString(), updated_by: profile.id } as never)
+      .update({ assigned_to_id: body.assigned_to_id, updated_at: new Date().toISOString(), updated_by: profile.id } as never)
       .in('id', ids)
       .select('id')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -36,8 +37,8 @@ export async function POST(request: Request) {
 
   if (body.action === 'set_status') {
     const nextStatus = body.status as TaskStatus
-    if (!nextStatus || nextStatus === 'changes_requested') {
-      return NextResponse.json({ error: 'A valid, non-changes_requested status is required' }, { status: 400 })
+    if (!nextStatus) {
+      return NextResponse.json({ error: 'A valid status is required' }, { status: 400 })
     }
 
     const { data: tasksData } = (await admin.from('tasks').select('*').in('id', ids)) as unknown as { data: Task[] | null }

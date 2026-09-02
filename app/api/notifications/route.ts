@@ -13,7 +13,7 @@ export async function GET() {
   const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
-    .or(`assigned_to.eq.${profile.id},co_assigned_to.eq.${profile.id},approver_id.eq.${profile.id}`)
+    .or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
 
   const taskIds = ((tasks as Task[]) ?? []).map((t) => t.id)
   const recentCutoff = new Date(now.getTime() - RECENTLY_CHANGED_HOURS * 60 * 60 * 1000).toISOString()

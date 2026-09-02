@@ -78,13 +78,13 @@ export function buildKeywordMovers(keywords: TrackedKeyword[]): WeeklyReportKeyw
   return combined
 }
 
-function taskToReportTask(task: Task & { assigned_profile?: { full_name: string } | null }): WeeklyReportTask {
+function taskToReportTask(task: Task & { owner_profile?: { full_name: string } | null }): WeeklyReportTask {
   return {
     id: task.id,
     action_number: task.action_number,
     title: task.title,
     due_date: task.due_date,
-    owner: task.assigned_profile?.full_name ?? null,
+    owner: task.owner_profile?.full_name ?? null,
   }
 }
 
@@ -125,13 +125,13 @@ export async function generateAndSaveWeeklyReport(
     admin.from('metric_snapshots').select('*').order('snapshot_date', { ascending: false }).order('created_at', { ascending: false }).limit(2),
     admin
       .from('tasks')
-      .select('*, assigned_profile:assigned_to(id, full_name)')
+      .select('*, owner_profile:owner_id(id, full_name)')
       .gte('due_date', today)
       .lte('due_date', in7DaysIso)
       .neq('status', 'completed'),
     admin
       .from('tasks')
-      .select('*, assigned_profile:assigned_to(id, full_name)')
+      .select('*, owner_profile:owner_id(id, full_name)')
       .lt('due_date', today)
       .neq('status', 'completed'),
     admin.from('tracked_keywords').select('*').eq('is_active', true),

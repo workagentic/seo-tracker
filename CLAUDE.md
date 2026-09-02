@@ -125,6 +125,17 @@ create table profiles (
 ### 5.2 `tasks`
 Pre-seeded but editable. As of 1 Sep 2026 this holds the 92-task, 5-week September production
 sprint (see Section 10.2) rather than the original 34-action strategy-doc register.
+
+**Ownership model rebuilt 2 Sep 2026 (migration `0024_task_ownership_rebuild.sql`, CLAUDE.md
+Section 14 Phase 2)** — Co-Owner and the whole approval workflow (`approver_id`,
+`submitted_for_review`/`changes_requested`) are gone, replaced by a two-tier model: **Owner**
+(renamed from the old "Assigned to" field, restricted at the app layer — `lib/tasks/constants.ts`'s
+`ELIGIBLE_OWNER_NAMES` — to exactly Tabish Khalid / Syed Ali / Najma Furqan; only the Owner can
+mark a task Completed) and **Assigned To** (new field, open to any profile including
+leadership-role people, who are otherwise read-only everywhere else in the app — Section 4).
+Status is now 4 values only; `overdue` is no longer stored, it's a purely visual/computed
+red-flag instead (Section 9.2, Phase 3). `category` became `category_id`, an FK into the new
+`task_categories` table (Section 5.18) instead of free text.
 ```sql
 create table tasks (
   id uuid primary key default gen_random_uuid(),
@@ -132,19 +143,18 @@ create table tasks (
   title text not null,
   description text,
   position_responsible text,            -- human-readable, e.g. "Tabish & Talha"
-  assigned_to uuid references profiles(id),
-  co_assigned_to uuid references profiles(id),
-  approver_id uuid references profiles(id),  -- added 0015_task_approval.sql; null = no sign-off
-                                              -- required, opt-in per task (Section 8.3)
+  owner_id uuid references profiles(id),        -- renamed from assigned_to 2 Sep 2026;
+                                                 -- app-layer-restricted to 3 people (above)
+  assigned_to_id uuid references profiles(id),  -- added 2 Sep 2026; whoever's doing the
+                                                 -- hands-on work right now, open to anyone
   due_date date,
+  deadline date,                        -- added 2 Sep 2026; set on handoff, must never be
+                                         -- later than due_date (CHECK constraint + app-layer)
   status text not null default 'pending'
-    check (status in (
-      'pending', 'in_progress', 'completed', 'blocked', 'overdue',
-      'submitted_for_review', 'changes_requested'  -- added 0015_task_approval.sql
-    )),
-  quarter text,                         -- e.g. "Q1", "Q2"
-  category text,                        -- e.g. "Service Pages", "Technical SEO" -- added
-                                         -- 0013_task_category.sql, sourced from the sprint sheet
+    check (status in ('pending', 'in_progress', 'on_hold', 'completed')),
+  quarter text,                         -- e.g. "Q1", "Q2" -- bare calendar-quarter label, no
+                                         -- year (Section 14 Phase 1), recurs every year
+  category_id uuid references task_categories(id),  -- was free-text `category` before 2 Sep 2026
   notes text,
   link_url text,                        -- added 0017_task_link_url.sql (Section 8.3)
   repeats text,                         -- added 0018_task_recurrence.sql; freeform cadence
@@ -421,6 +431,20 @@ API routes, and a `middleware.ts` route guard on `/leads`, unlike the rest of th
 `admin`/`head` are treated equivalently. See Section 8.10 and
 `docs/superpowers/specs/2026-09-02-leads-kanban-design.md`.
 
+### 5.18 `task_categories`
+Added `0024_task_ownership_rebuild.sql` (2 Sep 2026, CLAUDE.md Section 14 Phase 2), replacing
+free-text `tasks.category`. Auto-seeded with the 11 values already in use across the September
+sprint. Admin-CRUD (add/edit/delete) is Phase 4 — this migration only creates and seeds the
+table; everyone can read it (needed to populate the Category select on `/tasks`), only admins
+can write.
+```sql
+create table task_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamptz default now()
+);
+```
+
 ---
 
 ## 6. Environment Variables
@@ -634,22 +658,24 @@ mode only; **this app has no dark mode**, so no dark palette variant was built.
 register from Section 11.1, replaced 1 Sep 2026 by the September production sprint (Section
 10.2).
 
-**Add/Edit/Delete (admin only — implemented 28 Aug 2026):** a "New Task" button and per-row
-Edit/Delete actions appear only for `role = 'admin'` — distinct from the head/owner status
-editing already described below. `POST /api/tasks` creates; `PATCH /api/tasks/[id]` accepts
-`action_number`/`title`/`description`/`position_responsible`/`assigned_to`/
-`co_assigned_to`/`approver_id`/`due_date`/`quarter`/`category` only when the caller is admin
-(non-admins get 403 if they send any of those fields — `status`/`notes` still follow the
-head/owner/approver rule below);
+**Add/Edit/Delete (admin only — implemented 28 Aug 2026, field list updated 2 Sep 2026 for the
+ownership rebuild, Section 14 Phase 2):** a "New Task" button and per-row Edit/Delete actions
+appear only for `role = 'admin'` — distinct from the owner/assignee status editing described
+below. `POST /api/tasks` creates; `PATCH /api/tasks/[id]` accepts
+`action_number`/`title`/`description`/`position_responsible`/`owner_id`/`due_date`/`quarter`/
+`category_id`/`link_url`/`repeats`/`next_due`/`linked_finding_id`/`linked_keyword_id`
+only when the caller is admin (non-admins get 403 if they send any of those fields);
+`assigned_to_id`/`deadline`/`status`/`notes` follow the owner/assignee rule below instead —
+admins can set those too, but so can whoever currently holds the task.
 `DELETE /api/tasks/[id]` is admin-only (hard delete — `tasks` has no `is_active` column).
 RLS: `tasks_delete_admin` (migration `0008`) backs the delete path for defense-in-depth,
 though the route itself uses the service-role client.
 
-**Views:** Toggle between List view and Kanban view (columns: Pending / In Progress / Completed / Blocked / Overdue).
+**Views:** List view (Kanban view was never built).
 
 **Filters (always visible):**
 - My tasks only / All tasks
-- By quarter (Q1, Q2, Q3, Q4, Q5)
+- By quarter (Q1, Q2, Q3, Q4 — bare calendar-quarter labels, Section 14 Phase 1)
 - By status
 - By assigned owner
 - Overdue only
@@ -658,7 +684,7 @@ though the route itself uses the service-role client.
 - Action number (A1–A34) with colour-coded quarter badge
 - Title
 - Owner name + avatar
-- Co-owner name (if any)
+- Assigned To name (added 2 Sep 2026, replaces Co-owner — Section 14 Phase 2)
 - Due date — red if overdue
 - Status badge
 - Description (collapsed by default, expand on click)
@@ -677,17 +703,49 @@ This supersedes `tasks.updated_by`/`updated_at` (migration 0005), which only eve
 the *most recent* change — those columns are unchanged and still used elsewhere, this is
 additive.
 
-**Overdue logic:** A task is `overdue` if `due_date < today` AND `status` is not `completed`.
-**Implemented 29 Aug 2026 (Section 9.2):** a daily cron (`/api/cron/daily-overdue`, 00:05 UTC)
-persists this to `tasks.status` — previously it was only computed live in the UI filter.
+**Overdue logic (changed 2 Sep 2026, Section 14 Phase 2):** `overdue` is no longer a stored
+status — the daily cron (`/api/cron/daily-overdue`, implemented 29 Aug 2026, persisted this to
+`tasks.status`) is **removed** (route deleted, `vercel.json` cron entry removed) since the
+4-value status enum has no `overdue` value to write. It's back to being computed live —
+`due_date < today AND status != 'completed'` — same as before 29 Aug 2026, and Phase 3 adds a
+"red flag" visual indicator for anything within 3 days of Due.
 
-**Permissions:**
-- `owner` role: can change status and notes only on tasks where they are `assigned_to`,
-  `co_assigned_to`, or the task's `approver_id` (see approval workflow below)
+**Ownership/permissions model rebuilt 2 Sep 2026 (Section 14 Phase 2) — supersedes the
+"Approval workflow" section below, which is now historical only:**
+- **Owner** (renamed from the old "Assigned to" field) — the person permanently accountable
+  for a task's outcome, restricted at the app layer to exactly Tabish Khalid / Syed Ali /
+  Najma Furqan (`lib/tasks/constants.ts`'s `ELIGIBLE_OWNER_NAMES`; admin-only to set, via
+  `TaskFormDialog`). Only the Owner can set a task's status to `completed`.
+- **Assigned To** (new field, `assigned_to_id`) — whoever's doing the hands-on work right now.
+  Open to any profile, including `leadership`-role people, who are otherwise read-only
+  everywhere else in the app (Section 4) — being Assigned To on a task is a per-task carve-out,
+  the same kind of exception the old approver role had. Can move a task's status among
+  `pending`/`in_progress`/`on_hold` but not to `completed`.
+- **Deadline** (new field) — set whenever a task is handed to a new Assigned To; must never be
+  later than Due date (validated client-side, server-side, and by a DB CHECK constraint).
+- Reassignment (changing `assigned_to_id` + `deadline`) is available to whoever currently
+  holds the task (its Owner or its current Assigned To) or admin/head — not admin-only, since
+  handing a task on to the next person is the core workflow this model exists for. A minimal
+  `TaskReassignDialog` covers this for Phase 2; Phase 3's slide-in task panel replaces it.
+- `lib/tasks/permissions.ts`'s `getAllowedStatuses`/`canEditTaskStatus` (unit-tested) is the
+  single source of truth for both the API's write-time validation
+  (`app/api/tasks/[id]/route.ts`) and which options `TaskStatusSelect` offers.
+- Existing data migration (`0024_task_ownership_rebuild.sql`): owners Talha Azeem/Hameed
+  Ishaq/Usman Ali → reassigned to Tabish Khalid; Lavi Shamoon → reassigned to Najma Furqan;
+  Tabish/Najma/Syed Ali keep their own tasks. Each reassigned task's original owner (or its
+  co-owner, if one was set — co-owner takes priority) becomes its initial Assigned To, so
+  their involvement isn't silently dropped.
+
+**Permissions (current):**
+- Task's Owner: full control over that task's status (including `completed`) and notes
+- Task's current Assigned To (any role): status among `pending`/`in_progress`/`on_hold` and
+  notes, plus reassigning the task onward
 - `head` and `admin`: can edit all fields on all tasks
-- `leadership`: read only
+- `leadership`: read-only, except when they are a task's current Assigned To (see above)
 
-**Approval workflow — implemented 1 Sep 2026 (`Staff Docs/approval_mockup.html`).** Optional,
+**Approval workflow — implemented 1 Sep 2026 (`Staff Docs/approval_mockup.html`), removed 2
+Sep 2026 (Section 14 Phase 2). Historical record only — `approver_id` and the
+`submitted_for_review`/`changes_requested` statuses no longer exist.** Optional,
 opt-in per task via the new `approver_id` field (admin-only to set, via `TaskFormDialog`) —
 leaving it blank on a task keeps today's behaviour exactly as-is (owner can self-complete
 directly). Once set:
@@ -699,16 +757,10 @@ directly). Once set:
   **Request changes** (writes `status = 'changes_requested'`, with a mandatory reason logged
   to `task_activity` as a `change_request_reason` entry, visible in the History dialog). The
   owner then moves it back to `in_progress` themselves once addressed.
-- `lib/tasks/permissions.ts`'s `getAllowedStatuses`/`canEditTaskStatus` (unit-tested) is the
-  single source of truth for both the API's write-time validation
-  (`app/api/tasks/[id]/route.ts`) and which options the `TaskStatusSelect` dropdown offers —
-  `leadership` gets none regardless of any owner/approver match, matching Section 4.
 - The Tasks table shows a new Approver column and an amber "Nd awaiting approval" badge
   (computed live from `updated_at`, not a stored field) while `submitted_for_review`.
 - Two new notification-bell types (`lib/notifications.ts`): "awaiting your approval" (to the
-  approver) and "changes requested" (to the doer).
-- `/api/cron/daily-overdue` now also marks `submitted_for_review`/`changes_requested` tasks
-  overdue past their due date, same as `pending`/`in_progress`/`blocked`.
+  approver) and "changes requested" (to the doer). Both removed 2 Sep 2026.
 
 **Comments — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #1,
 `task_comments` table, Section 5.16).** A "Comments" button next to "History" on every task
@@ -716,9 +768,11 @@ row opens a threaded, append-only conversation (`app/api/tasks/[id]/comments/rou
 `TaskCommentsDialog`) — distinct from the pre-existing but UI-less `tasks.notes` field, which
 is unchanged and untouched by this. Anyone `admin`/`head`/`owner` can post on any task
 (matching the team-wide task visibility in Section 4); `leadership` can read but not post.
-Posting triggers a new `new-comment` notification-bell entry to the task's owner, co-owner,
-and approver (excluding the commenter) — message deliberately doesn't name the commenter,
-matching how the existing `status-changed` notification also omits who made the change.
+Posting triggers a new `new-comment` notification-bell entry to the task's Owner and current
+Assigned To (excluding the commenter; updated 2 Sep 2026 for the ownership rebuild, Section 14
+Phase 2 — previously owner/co-owner/approver) — message deliberately doesn't name the
+commenter, matching how the existing `status-changed` notification also omits who made the
+change.
 
 **Link to review — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #2,
 `tasks.link_url`).** A single URL field, admin-only to set via `TaskFormDialog`, shown as a
@@ -729,20 +783,22 @@ screenshot" case without new infrastructure.
 **Recurrence — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #3,
 `tasks.repeats`/`tasks.next_due`).** `repeats` is a freeform cadence label (e.g. "Weekly, on
 Friday"); `next_due` is the actual comparable date. Once `next_due` is set on a task, it
-stands in for `due_date` everywhere overdue-ness is computed — the Tasks table's Due column,
-`lib/notifications.ts`'s overdue/deadline-soon logic, and `/api/cron/daily-overdue` — so a
-recurring task (the kind of thing the old "Recurring" A34 register entry could never be
+stands in for `due_date` everywhere overdue-ness is computed — the Tasks table's Due column
+and `lib/notifications.ts`'s overdue/deadline-soon logic (the daily-overdue cron this used to
+also feed was removed 2 Sep 2026, Section 14 Phase 2 — overdue-ness is live-computed only now)
+— so a recurring task (the kind of thing the old "Recurring" A34 register entry could never be
 flagged late for) becomes overdue-capable. As of this session's task-data reload (Section
 10.2) no task in the live register currently uses this — it's available for whenever a
 recurring task like weekly reviews gets added.
 
 **Bulk actions — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #4,
 `app/api/tasks/bulk/route.ts`).** Row checkboxes + a toolbar appear once at least one task is
-selected: **Reassign to** (admin-only), **Set status to** (`admin`/`head`/`owner`; reuses
-`lib/tasks/permissions.ts`'s `getAllowedStatuses` per row server-side, silently skipping rows
-the caller isn't allowed to change and reporting a skip count — `changes_requested` is
-excluded from the bulk status options since it requires a per-task reason), and **Export
-CSV** (client-side, available to everyone, no server round-trip).
+selected: **Reassign to** (admin-only; sets `assigned_to_id` — updated 2 Sep 2026 for the
+ownership rebuild, Section 14 Phase 2, since Owner is no longer a freely bulk-reassignable
+field), **Set status to** (`admin`/`head`/`owner`; reuses `lib/tasks/permissions.ts`'s
+`getAllowedStatuses` per row server-side, silently skipping rows the caller isn't allowed to
+change and reporting a skip count), and **Export CSV** (client-side, available to everyone,
+no server round-trip).
 
 **Task linking — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #5,
 `tasks.linked_finding_id`/`tasks.linked_keyword_id`).** This is what would have caught the
@@ -971,11 +1027,14 @@ export function calculateRAG(actual: number | null, target: number): RAGStatus {
 **Note:** For metrics where lower is better (e.g. if any are added in future), invert the logic. All current metrics are higher-is-better.
 
 ### 9.2 Task Status Auto-Update
-**Implemented 29 Aug 2026.** `GET /api/cron/daily-overdue`, scheduled daily at 00:05 UTC via
-`vercel.json`, `CRON_SECRET`-authenticated (same pattern as the weekly cron). Sets
-`status = 'overdue'` on any task where `due_date < today` AND
-`status IN ('pending', 'in_progress', 'blocked')`. Logs to `sync_logs` with
-`source: 'daily-overdue-cron'`.
+**Implemented 29 Aug 2026, removed 2 Sep 2026 (Section 14 Phase 2).** Was `GET
+/api/cron/daily-overdue`, scheduled daily at 00:05 UTC via `vercel.json`,
+`CRON_SECRET`-authenticated (same pattern as the weekly cron), setting `status = 'overdue'` on
+any task past its due date and not completed. Removed along with the `overdue` status value
+itself (the 4-value status enum has no stored `overdue`) — route deleted, `vercel.json` cron
+entry removed. Overdue-ness is computed live wherever it's needed (`due_date < today AND
+status != 'completed'`), same as before this feature existed; Phase 3 adds a visual "red flag"
+for anything within 3 days of Due.
 
 ### 9.3 Quarter Detection
 Determine the current quarter from today's date against the defined quarter boundaries:
@@ -1433,8 +1492,8 @@ a few things worth knowing before calling this done:
   admin-only manual trigger. Email notification still not built (spec marks it optional).
 - Task activity log (Section 8.3) — new `task_activity` table, one row per changed field,
   viewable via a "History" button on every task row (all roles).
-- Daily overdue auto-update (Section 9.2) — `/api/cron/daily-overdue`, runs at 00:05 UTC,
-  persists `status = 'overdue'` instead of only computing it live in the UI.
+- ~~Daily overdue auto-update~~ (Section 9.2) — implemented 29 Aug 2026, **removed 2 Sep 2026**
+  along with the `overdue` status value itself (Section 14 Phase 2); back to computed live.
 - Scorecard CSV/PDF export (Section 8.4) — CSV is a real download; PDF is the browser's
   native print dialog with `print:hidden` chrome, not a new PDF-generation dependency.
 
@@ -1479,7 +1538,7 @@ of work — comparable to or larger than the entire Leads Kanban build — decom
 ordered phases, each to get its own design review (and likely its own spec + SDD-worktree
 execution cycle, matching how Leads was built) before implementation starts:
 
-**Phase 0 — Leads bug fixes (small, independent, do first):**
+**Phase 0 — ✅ done (2 Sep 2026).** Leads bug fixes (small, independent, do first):
 - Delete-lead UI button (the `DELETE /api/leads/[id]` route already exists, just no button)
 - `htmlFor`/`id` pairing on `lead-detail-dialog.tsx`'s form labels (screen-reader gap)
 - Failed drag-and-drop PATCH currently reverts silently — add an error message
@@ -1487,7 +1546,9 @@ execution cycle, matching how Leads was built) before implementation starts:
   switching to a source that doesn't require it (mirrors an already-fixed bug in
   `new-lead-dialog.tsx` — apply the same fix, `setSourceId` helper pattern)
 
-**Phase 1 — Quarter boundaries overhaul ("most critical" per Abdullah):**
+**Phase 1 — ✅ done (2 Sep 2026), migration `0023_calendar_quarter_boundaries.sql` still needs
+manual application via the Supabase SQL editor.** Quarter boundaries overhaul ("most critical"
+per Abdullah):
 - Switch from "programme quarters" (counted up from kickoff) to **standard calendar quarters**
   that repeat every year: Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec — computed
   generically for any date, not a fixed hardcoded boundary list (`QUARTER_BOUNDARIES` in
@@ -1504,8 +1565,13 @@ execution cycle, matching how Leads was built) before implementation starts:
 - Every place displaying/reading a quarter label needs updating: dashboard header countdown,
   scorecard quarter selector, weekly report, `getCurrentQuarter()`.
 
-**Phase 2 — Task ownership/workflow model rebuild (foundational for Phase 3, itself as large
-as the whole Leads project):**
+**Phase 2 — ✅ done (2 Sep 2026), migration `0024_task_ownership_rebuild.sql` still needs
+manual application via the Supabase SQL editor.** Task ownership/workflow model rebuild
+(foundational for Phase 3, itself as large as the whole Leads project). One deliberate
+addition beyond the bullets below: since reassignment (Owner/Assigned To handoff) is now
+usable by non-admins too, not just admins, Phase 2 shipped a minimal `TaskReassignDialog` (a
+"Reassign" button next to History/Comments on rows the viewer can edit) so the feature works
+end-to-end rather than being API-only until Phase 3's slide-in panel lands:
 - **Remove Co-Owner entirely.** Existing `co_assigned_to` data seeds the initial new
   "Assigned To" value on migration (see below) — not just dropped.
 - **Remove Approver entirely** — the whole approval workflow built 1 Sep 2026 (Section 8.3):

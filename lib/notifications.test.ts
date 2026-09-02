@@ -13,13 +13,13 @@ function makeTask(overrides: Partial<Task>): Task {
     title: 'Some task',
     description: null,
     position_responsible: null,
-    assigned_to: USER_ID,
-    co_assigned_to: null,
-    approver_id: null,
+    owner_id: USER_ID,
+    assigned_to_id: null,
     due_date: null,
+    deadline: null,
     status: 'pending',
     quarter: 'Q1',
-    category: null,
+    category_id: null,
     notes: null,
     link_url: null,
     repeats: null,
@@ -47,12 +47,12 @@ function makeComment(overrides: Partial<TaskComment>): TaskComment {
 
 describe('getNotificationsForUser', () => {
   it('ignores tasks not attached to the user', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, co_assigned_to: null })
+    const task = makeTask({ owner_id: OTHER_USER_ID, assigned_to_id: null })
     expect(getNotificationsForUser([task], [], USER_ID, NOW)).toEqual([])
   })
 
-  it('includes tasks where the user is the co-owner', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, co_assigned_to: USER_ID, due_date: '2026-08-20', status: 'pending' })
+  it('includes tasks where the user is the current assignee, not just the owner', () => {
+    const task = makeTask({ owner_id: OTHER_USER_ID, assigned_to_id: USER_ID, due_date: '2026-08-20', status: 'pending' })
     const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'overdue')).toBe(true)
   })
@@ -106,83 +106,53 @@ describe('getNotificationsForUser', () => {
   })
 
   it('flags a status change made by someone else within the last 48 hours', () => {
-    const task = makeTask({ updated_by: OTHER_USER_ID, updated_at: '2026-08-28T00:00:00.000Z', status: 'blocked' })
+    const task = makeTask({ updated_by: OTHER_USER_ID, updated_at: '2026-08-28T00:00:00.000Z', status: 'on_hold' })
     const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
-    expect(notifications).toContainEqual({ type: 'status-changed', taskId: 't1', actionNumber: 'A1', message: 'A1\'s status changed to "blocked"', key: 'status-changed:t1:2026-08-28T00:00:00.000Z' })
+    expect(notifications).toContainEqual({ type: 'status-changed', taskId: 't1', actionNumber: 'A1', message: 'A1\'s status changed to "on hold"', key: 'status-changed:t1:2026-08-28T00:00:00.000Z' })
   })
 
   it('does not flag a change the user made themselves', () => {
-    const task = makeTask({ updated_by: USER_ID, updated_at: '2026-08-28T00:00:00.000Z', status: 'blocked' })
+    const task = makeTask({ updated_by: USER_ID, updated_at: '2026-08-28T00:00:00.000Z', status: 'on_hold' })
     const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'status-changed')).toBe(false)
   })
 
   it('does not flag a status change older than 48 hours', () => {
-    const task = makeTask({ updated_by: OTHER_USER_ID, updated_at: '2026-08-01T00:00:00.000Z', status: 'blocked' })
+    const task = makeTask({ updated_by: OTHER_USER_ID, updated_at: '2026-08-01T00:00:00.000Z', status: 'on_hold' })
     const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'status-changed')).toBe(false)
   })
 
-  it('notifies the approver when a task reaches submitted_for_review', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, approver_id: USER_ID, status: 'submitted_for_review' })
-    const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
-    expect(notifications).toContainEqual({
-      type: 'awaiting-your-approval', taskId: 't1', actionNumber: 'A1', message: 'A1 is awaiting your approval',
-      key: 'awaiting-your-approval:t1:2020-01-01T00:00:00.000Z',
-    })
-  })
-
-  it('does not notify the approver when the task is not yet submitted for review', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, approver_id: USER_ID, status: 'in_progress' })
-    const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
-    expect(notifications.some((n) => n.type === 'awaiting-your-approval')).toBe(false)
-  })
-
-  it('notifies the doer when changes are requested on their task', () => {
-    const task = makeTask({ assigned_to: USER_ID, approver_id: OTHER_USER_ID, status: 'changes_requested' })
-    const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
-    expect(notifications).toContainEqual({
-      type: 'changes-requested', taskId: 't1', actionNumber: 'A1', message: 'A1 has changes requested — take another look',
-      key: 'changes-requested:t1:2020-01-01T00:00:00.000Z',
-    })
-  })
-
-  it('does not notify an unrelated user about someone else\'s review or change request', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, approver_id: OTHER_USER_ID, status: 'submitted_for_review' })
-    const notifications = getNotificationsForUser([task], [], USER_ID, NOW)
-    expect(notifications).toEqual([])
-  })
-
   it('notifies the owner about a new comment from someone else', () => {
-    const task = makeTask({ assigned_to: USER_ID })
+    const task = makeTask({ owner_id: USER_ID })
     const comment = makeComment({ author_id: OTHER_USER_ID })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications).toContainEqual({ type: 'new-comment', taskId: 't1', actionNumber: 'A1', message: 'A1 has a new comment', key: 'new-comment:c1' })
   })
 
-  it('notifies the approver about a new comment on a task they approve but do not own', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID, approver_id: USER_ID })
+  it('notifies the current assignee about a new comment on a task they do not own', () => {
+    const task = makeTask({ owner_id: OTHER_USER_ID, assigned_to_id: USER_ID })
     const comment = makeComment({ author_id: OTHER_USER_ID })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'new-comment')).toBe(true)
   })
 
   it('does not notify about the user\'s own comment', () => {
-    const task = makeTask({ assigned_to: USER_ID })
+    const task = makeTask({ owner_id: USER_ID })
     const comment = makeComment({ author_id: USER_ID })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'new-comment')).toBe(false)
   })
 
   it('does not notify about a comment on a task the user is not attached to', () => {
-    const task = makeTask({ assigned_to: OTHER_USER_ID })
+    const task = makeTask({ owner_id: OTHER_USER_ID })
     const comment = makeComment({ author_id: OTHER_USER_ID })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'new-comment')).toBe(false)
   })
 
   it('does not notify about a comment older than 48 hours', () => {
-    const task = makeTask({ assigned_to: USER_ID })
+    const task = makeTask({ owner_id: USER_ID })
     const comment = makeComment({ author_id: OTHER_USER_ID, created_at: '2026-08-01T00:00:00.000Z' })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'new-comment')).toBe(false)
