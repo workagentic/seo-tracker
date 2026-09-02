@@ -673,29 +673,58 @@ though the route itself uses the service-role client.
 
 **Views:** List view (Kanban view was never built).
 
-**Filters (always visible):**
-- My tasks only / All tasks
+**Filters (always visible, updated 2 Sep 2026, Section 14 Phase 3):**
+- ~~My tasks only / All tasks~~ removed — non-admins are always hard-scoped server-side to
+  tasks where they're Owner or Assigned To; only admins get a by-owner ("All owners") filter
 - By quarter (Q1, Q2, Q3, Q4 — bare calendar-quarter labels, Section 14 Phase 1)
 - By status
-- By assigned owner
+- By category (dropdown, populated from `task_categories` — was free text before this phase,
+  and didn't even have a Task Tracker filter until now)
+- By assigned owner (admin only)
 - Overdue only
+- Persist automatically per browser (`localStorage`, not synced across devices) until
+  "Clear Filters" is pressed
+
+**Task No — implemented 2 Sep 2026 (Section 14 Phase 3), replaces the "Action" column.** Plain
+sequential numbers (01, 02, 03…), **never stored** — live-computed on every render from
+whichever tasks are currently visible (post-search, post-filter), ranked by effective due date
+ascending (soonest = 01; undated tasks sort last). `action_number` (the sprint-sheet codes like
+S1/L1/A16-W1) is unchanged in the schema and still shown, just demoted to a small muted tag
+next to the title instead of being the primary leftmost column.
+
+**Overview stat deck — implemented 2 Sep 2026 (Section 14 Phase 3).** Four tiles above the
+table: Pending / In-Progress / On-Hold / Completed counts, computed from the current
+server-filtered task set (not affected by the client-only search box).
 
 **Task card shows:**
-- Action number (A1–A34) with colour-coded quarter badge
+- Task No (see above) plus the `action_number` tag
 - Title
 - Owner name + avatar
 - Assigned To name (added 2 Sep 2026, replaces Co-owner — Section 14 Phase 2)
-- Due date — red if overdue
+- Due date — red if overdue, 🚩 red-flagged if within 3 days and not yet overdue
 - Status badge
 - Description (collapsed by default, expand on click)
 
-**Task detail panel (slide-in):** not built as a dedicated panel — the fields it would show
-(full description, due date, assigned/co-assigned, status, notes) are already editable via
-the `TaskFormDialog` (admin) and `TaskStatusSelect` (head/owner) instead of a slide-in.
+**Task detail panel — implemented 2 Sep 2026 (`TaskDetailPanel`, CLAUDE.md Section 14 Phase
+3).** A right-anchored slide-in panel, 50% of the viewport width (the one deliberate exception
+to the 80%-width rule the rest of the app's popups got in this same phase — built directly on
+`components/ui/sheet.tsx`'s `Sheet`/`SheetContent side="right"`, not the shared `Dialog`),
+scrollable, opening when a task row is clicked (anywhere except the row's checkbox or its
+inline status `<select>`, which stop propagation). Replaces the separate History and Comments
+buttons/dialogs, and Edit/Delete, entirely — nothing about a task lives outside this panel
+once it's open except the row's own quick-access status dropdown. Layout top to bottom:
+Status + (non-admin) a lightweight Reassign box → Details (admin: full editable
+`TaskFields`/`Save`/`Delete task`; everyone else: read-only field summary) → Notes → Comments
+→ Activity History (Comments-above-History was Abdullah's explicit ordering call).
+`TaskFormDialog` (`components/tasks/task-form-dialog.tsx`) is creation-only now — editing an
+existing task moved entirely into this panel, sharing its field-rendering with the New Task
+dialog via the extracted `TaskFields` component (`components/tasks/task-fields.tsx`).
+Non-admin reassignment (Owner/Assigned-To handoff) uses the same panel section that Phase 2's
+interim `TaskReassignDialog` covered — that component is now deleted, absorbed here.
 
-**Activity log — implemented 29 Aug 2026 (`task_activity` table, Section 5.15).** A
-"History" button (visible to every role, since task visibility is team-wide per Section 4)
-opens `TaskHistoryDialog`, listing every recorded change to a task — who changed which
+**Activity log — implemented 29 Aug 2026 (`task_activity` table, Section 5.15), moved into the
+task detail panel's "Activity History" section 2 Sep 2026 (the standalone `TaskHistoryDialog`
+button is gone, absorbed above).** Lists every recorded change to a task — who changed which
 field, old value → new value, when. `computeTaskActivityEntries` (`lib/tasks/activity.ts`,
 unit-tested) diffs the PATCH payload against the task's current row inside
 `app/api/tasks/[id]/route.ts`, and one `task_activity` row is inserted per changed field.
@@ -703,12 +732,14 @@ This supersedes `tasks.updated_by`/`updated_at` (migration 0005), which only eve
 the *most recent* change — those columns are unchanged and still used elsewhere, this is
 additive.
 
-**Overdue logic (changed 2 Sep 2026, Section 14 Phase 2):** `overdue` is no longer a stored
-status — the daily cron (`/api/cron/daily-overdue`, implemented 29 Aug 2026, persisted this to
-`tasks.status`) is **removed** (route deleted, `vercel.json` cron entry removed) since the
-4-value status enum has no `overdue` value to write. It's back to being computed live —
-`due_date < today AND status != 'completed'` — same as before 29 Aug 2026, and Phase 3 adds a
-"red flag" visual indicator for anything within 3 days of Due.
+**Overdue logic (changed 2 Sep 2026, Section 14 Phase 2) + Red flag (added Phase 3):**
+`overdue` is no longer a stored status — the daily cron (`/api/cron/daily-overdue`,
+implemented 29 Aug 2026, persisted this to `tasks.status`) is **removed** (route deleted,
+`vercel.json` cron entry removed) since the 4-value status enum has no `overdue` value to
+write. It's back to being computed live — `due_date < today AND status != 'completed'` — same
+as before 29 Aug 2026. On top of that, the Tasks table now shows a 🚩 red-flag indicator
+(distinct from the overdue-red Due-date text) for any not-yet-overdue, not-completed task
+whose effective due date is within 3 days.
 
 **Ownership/permissions model rebuilt 2 Sep 2026 (Section 14 Phase 2) — supersedes the
 "Approval workflow" section below, which is now historical only:**
@@ -763,19 +794,33 @@ directly). Once set:
   approver) and "changes requested" (to the doer). Both removed 2 Sep 2026.
 
 **Comments — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #1,
-`task_comments` table, Section 5.16).** A "Comments" button next to "History" on every task
-row opens a threaded, append-only conversation (`app/api/tasks/[id]/comments/route.ts`,
-`TaskCommentsDialog`) — distinct from the pre-existing but UI-less `tasks.notes` field, which
-is unchanged and untouched by this. Anyone `admin`/`head`/`owner` can post on any task
-(matching the team-wide task visibility in Section 4); `leadership` can read but not post.
-Posting triggers a new `new-comment` notification-bell entry to the task's Owner and current
-Assigned To (excluding the commenter; updated 2 Sep 2026 for the ownership rebuild, Section 14
-Phase 2 — previously owner/co-owner/approver) — message deliberately doesn't name the
-commenter, matching how the existing `status-changed` notification also omits who made the
-change.
+`task_comments` table, Section 5.16), moved into the task detail panel's "Comments" section
+same day (the standalone "Comments" button/`TaskCommentsDialog` is gone, absorbed above) —
+distinct from the pre-existing but UI-less `tasks.notes` field, which is unchanged and
+untouched by this. Anyone `admin`/`head`/`owner` can post on any task (matching the team-wide
+task visibility in Section 4); `leadership` can read but not post. Posting triggers a new
+`new-comment` notification-bell entry to the task's Owner and current Assigned To (excluding
+the commenter; updated 2 Sep 2026 for the ownership rebuild, Section 14 Phase 2 — previously
+owner/co-owner/approver) — message deliberately doesn't name the commenter, matching how the
+existing `status-changed` notification also omits who made the change.
+
+**Comments become editable/deletable, plus @ mentions — implemented 2 Sep 2026 (Section 14
+Phase 3, migration `0025_task_comments_edit_delete.sql`).** A change from the append-only
+design above: the comment's own author can edit it (`edited_at` set, shown as "(edited)") or
+soft-delete it (`deleted_at` set — the row stays, rendered as "[comment deleted]" so a thread
+someone else is mid-read of doesn't silently renumber); admin can also delete (not edit)
+anyone's comment for moderation. `app/api/tasks/[id]/comments/[commentId]/route.ts` (PATCH,
+DELETE) backs this. Typing `@Name` in the comment box offers a simple suggestion dropdown
+(matches on `full_name` prefix from the point after the last `@` in the current draft — not
+full cursor-position-aware, a deliberate simplification for a 9-person tool) and mentioning
+someone fires a new `mentioned` notification-bell type, independent of `new-comment` — it
+fires for the mentioned person regardless of whether they're attached to that task at all
+(`lib/notifications.ts`'s `getNotificationsForUser` now takes the viewer's own `full_name` and
+checks recent comments app-wide for an `@` + that name substring).
 
 **Link to review — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #2,
-`tasks.link_url`).** A single URL field, admin-only to set via `TaskFormDialog`, shown as a
+`tasks.link_url`).** A single URL field, admin-only to set (creation via `TaskFormDialog`,
+editing via the task detail panel's Details section since Phase 3), shown as a
 🔗 link next to the task title. Link-only, no file upload — there's no Supabase Storage
 bucket in this project, and a URL covers the mockup's "link to the live page / doc /
 screenshot" case without new infrastructure.
@@ -803,8 +848,9 @@ no server round-trip).
 **Task linking — implemented 2 Sep 2026 (`Staff Docs/further_recs_mockup.html` #5,
 `tasks.linked_finding_id`/`tasks.linked_keyword_id`).** This is what would have caught the
 real A12-vs-finding mismatch (task marked completed, its linked Audit Reports finding still
-open) at the source. Admin-only to set via `TaskFormDialog` (dropdowns of `audit_reports`/
-`tracked_keywords`). A linked finding shows both ways: as a badge on the task row, and as an
+open) at the source. Admin-only to set (creation via `TaskFormDialog`, editing via the task
+detail panel since Phase 3), via dropdowns of `audit_reports`/`tracked_keywords`. A linked
+finding shows both ways: as a badge on the task row, and as an
 "↳ Linked task: A12 · status" badge on the finding's `AuditCard` (Section 8.7). When a task
 with a `linked_finding_id` is moved to `completed`, `TaskStatusSelect` shows a confirm dialog
 — "Also mark that finding resolved?" — and on confirmation `app/api/tasks/[id]/route.ts`
@@ -1622,7 +1668,9 @@ end-to-end rather than being API-only until Phase 3's slide-in panel lands:
   Pages, New Blogs, Blog Revamp, Proofreading, Publishing, Design / Images, Technical SEO,
   Website, Links, Off-Page SEO.
 
-**Phase 3 — Task Tracker UI overhaul (depends on Phase 2's data model):**
+**Phase 3 — ✅ done (2 Sep 2026), migration `0025_task_comments_edit_delete.sql` still needs
+manual application via the Supabase SQL editor.** Task Tracker UI overhaul (depended on Phase
+2's data model):
 - **Task No** replaces the "Action" column/`action_number` (S1/L1/B1/A16-W1/etc. codes) —
   plain sequential numbers (01, 02, 03…), **never stored**, live-computed on every view:
   **soonest due date = 01** (most urgent = lowest number), recalculated fresh from current
@@ -1699,8 +1747,6 @@ end-to-end rather than being API-only until Phase 3's slide-in panel lands:
 - Same pattern on `/competitors`, per competitor.
 
 **Known gaps (not yet built):**
-- Task detail slide-in panel (Section 8.3) — not built as a dedicated panel; its fields are
-  already editable via `TaskFormDialog`/`TaskStatusSelect` instead.
 - Scorecard's "Sprint actions completed on time" toggle (Section 8.4) — CSV/PDF export is
   done, this toggle is not.
 - Weekly report's KPI section can go stale — `metric_snapshots` isn't refreshed by the
@@ -1711,6 +1757,13 @@ end-to-end rather than being API-only until Phase 3's slide-in panel lands:
   be reproduced against the current code or live data as of this session — the PATCH route
   and RLS both correctly scope `owner`-role edits to tasks the user is `assigned_to`/
   `co_assigned_to` on. Revisit with specific repro steps if it recurs.
+- Mid-life reassignment doesn't notify the new assignee (`lib/notifications.ts`'s "assigned"
+  notification only fires for a genuinely new task, via `created_at` recency) — doing this
+  properly needs `task_activity` entries in `getNotificationsForUser`'s inputs, which it
+  doesn't currently take.
+- @ mention autocomplete (Section 8.3) matches on plain text after the last `@` in the
+  comment draft, not true cursor position — a deliberate simplification, not a bug, but worth
+  knowing if it ever feels wrong while typing mid-message.
 
 ---
 

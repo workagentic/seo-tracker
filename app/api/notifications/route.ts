@@ -10,18 +10,23 @@ export async function GET() {
 
   const now = new Date()
   const supabase = await createServerSupabaseClient()
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('*')
-    .or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
-
-  const taskIds = ((tasks as Task[]) ?? []).map((t) => t.id)
+  // Fetches ALL tasks/recent comments, not just this user's own -- a mention can happen on any
+  // task (Section 14 Phase 3's "mentioned" notification is independent of task attachment),
+  // and getNotificationsForUser already does its own owner_id/assigned_to_id filtering for
+  // the notification types that ARE scoped to the user's own tasks.
   const recentCutoff = new Date(now.getTime() - RECENTLY_CHANGED_HOURS * 60 * 60 * 1000).toISOString()
-  const { data: comments } = taskIds.length
-    ? await supabase.from('task_comments').select('*').in('task_id', taskIds).gte('created_at', recentCutoff)
-    : { data: [] }
+  const [{ data: tasks }, { data: comments }] = await Promise.all([
+    supabase.from('tasks').select('*'),
+    supabase.from('task_comments').select('*').gte('created_at', recentCutoff),
+  ])
 
-  const notifications = getNotificationsForUser((tasks as Task[]) ?? [], (comments as TaskComment[]) ?? [], profile.id, now)
+  const notifications = getNotificationsForUser(
+    (tasks as Task[]) ?? [],
+    (comments as TaskComment[]) ?? [],
+    profile.id,
+    now,
+    profile.full_name
+  )
 
   const { data: reads } = notifications.length
     ? await supabase

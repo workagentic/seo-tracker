@@ -4,17 +4,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Profile, Task, TaskStatus } from '@/types'
 import { TaskStatusSelect } from './task-status-select'
-import { TaskFormDialog } from './task-form-dialog'
-import { DeleteTaskButton } from './delete-task-button'
-import { TaskHistoryDialog } from './task-history-dialog'
-import { TaskCommentsDialog } from './task-comments-dialog'
-import { TaskReassignDialog } from './task-reassign-dialog'
+import { TaskDetailPanel } from './task-detail-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
 import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
 
 const BULK_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'on_hold', 'completed']
+const RED_FLAG_DAYS = 3
+const STATUS_DECK: { key: TaskStatus; label: string }[] = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'in_progress', label: 'In-Progress' },
+  { key: 'on_hold', label: 'On-Hold' },
+  { key: 'completed', label: 'Completed' },
+]
+
+function effectiveDueOf(task: Task): string | null {
+  return task.next_due ?? task.due_date
+}
 
 function sortValue(task: Task, key: string): unknown {
   switch (key) {
@@ -22,7 +29,7 @@ function sortValue(task: Task, key: string): unknown {
     case 'title': return task.title
     case 'owner': return task.owner_profile?.full_name ?? null
     case 'assigned_to': return task.assigned_to_profile?.full_name ?? null
-    case 'due_date': return task.next_due ?? task.due_date
+    case 'due_date': return effectiveDueOf(task)
     case 'status': return task.status
     default: return null
   }
@@ -72,6 +79,7 @@ export function TaskList({
 }) {
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
+  const redFlagCutoff = new Date(now.getTime() + RED_FLAG_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const isAdmin = currentProfile.role === 'admin'
   const canBulkEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'
   const [search, setSearch] = useState('')
@@ -81,6 +89,7 @@ export function TaskList({
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   const [flashId, setFlashId] = useState<string | null>(null)
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const highlightId = searchParams.get('highlight')
@@ -111,6 +120,29 @@ export function TaskList({
     }
     return result
   }, [tasks, search, sort])
+
+  // Task No: a live-computed rank, never stored (CLAUDE.md Section 14 Phase 3) -- soonest
+  // effective due date gets 01, recalculated fresh from whatever's currently visible.
+  // Undated tasks sort last (lowest urgency).
+  const taskNoById = useMemo(() => {
+    const ranked = [...visibleTasks].sort((a, b) => {
+      const dueA = effectiveDueOf(a)
+      const dueB = effectiveDueOf(b)
+      if (dueA === dueB) return 0
+      if (dueA === null) return 1
+      if (dueB === null) return -1
+      return dueA.localeCompare(dueB)
+    })
+    return new Map(ranked.map((t, i) => [t.id, String(i + 1).padStart(2, '0')]))
+  }, [visibleTasks])
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, on_hold: 0, completed: 0 }
+    for (const t of tasks) counts[t.status]++
+    return counts
+  }, [tasks])
+
+  const openTask = tasks.find((t) => t.id === openTaskId) ?? null
 
   function toggleSort(key: string) {
     setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -152,6 +184,14 @@ export function TaskList({
 
   return (
     <div>
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {STATUS_DECK.map((s) => (
+          <div key={s.key} className="rounded-md border border-border bg-card p-3">
+            <div className="text-xs font-medium uppercase text-muted-foreground">{s.label}</div>
+            <div className="text-2xl font-semibold text-foreground">{statusCounts[s.key]}</div>
+          </div>
+        ))}
+      </div>
       <Input
         placeholder="Search tasks…"
         value={search}
@@ -222,19 +262,20 @@ export function TaskList({
                   }
                 />
               </th>
-              <SortableTh label="Action" sortKey="action_number" currentSort={sort} onSort={toggleSort} />
+              <th className="px-4 py-2">Task No</th>
               <SortableTh label="Title" sortKey="title" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Owner" sortKey="owner" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Assigned To" sortKey="assigned_to" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Due" sortKey="due_date" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
-              <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {visibleTasks.map((task) => {
-              const effectiveDue = task.next_due ?? task.due_date
-              const isOverdue = !!effectiveDue && effectiveDue < today && task.status !== 'completed'
+              const effectiveDue = effectiveDueOf(task)
+              const notDone = task.status !== 'completed'
+              const isOverdue = !!effectiveDue && effectiveDue < today && notDone
+              const isRedFlagged = !isOverdue && !!effectiveDue && effectiveDue <= redFlagCutoff && notDone
               const canEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || canEditTaskStatus(task, currentProfile)
               const allowedStatuses = getAllowedStatuses(task, currentProfile)
 
@@ -242,13 +283,15 @@ export function TaskList({
                 <tr
                   key={task.id}
                   id={`task-row-${task.id}`}
-                  className={`hover:bg-muted/50 ${flashId === task.id ? 'bg-amber-100 transition-colors duration-1000' : ''}`}
+                  onClick={() => setOpenTaskId(task.id)}
+                  className={`cursor-pointer hover:bg-muted/50 ${flashId === task.id ? 'bg-amber-100 transition-colors duration-1000' : ''}`}
                 >
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(task.id)} onChange={() => toggleSelected(task.id)} />
                   </td>
-                  <td className="px-4 py-2 font-mono font-medium text-foreground">{task.action_number}</td>
+                  <td className="px-4 py-2 font-mono font-medium text-foreground">{taskNoById.get(task.id)}</td>
                   <td className="px-4 py-2 text-foreground">
+                    <span className="mr-2 font-mono text-xs text-muted-foreground">{task.action_number}</span>
                     {task.title}
                     {task.category && (
                       <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
@@ -261,6 +304,7 @@ export function TaskList({
                         target="_blank"
                         rel="noreferrer"
                         title={task.link_url}
+                        onClick={(e) => e.stopPropagation()}
                         className="ml-2 text-xs text-indigo-600 hover:underline"
                       >
                         🔗 link
@@ -283,9 +327,10 @@ export function TaskList({
                   <td className="px-4 py-2 text-muted-foreground">{task.owner_profile?.full_name ?? '—'}</td>
                   <td className="px-4 py-2 text-muted-foreground">{task.assigned_to_profile?.full_name ?? '—'}</td>
                   <td className={`px-4 py-2 font-mono ${isOverdue ? 'font-medium text-red-600' : 'text-muted-foreground'}`}>
+                    {isRedFlagged && <span title={`Due within ${RED_FLAG_DAYS} days`}>🚩 </span>}
                     {task.repeats ? `${task.repeats}${task.next_due ? ` · next ${task.next_due}` : ''}` : task.due_date ?? 'Recurring'}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                     <TaskStatusSelect
                       taskId={task.id}
                       status={task.status}
@@ -294,43 +339,12 @@ export function TaskList({
                       linkedFindingTitle={task.linked_finding?.title ?? null}
                     />
                   </td>
-                  <td className="px-4 py-2">
-                    <div className="flex gap-1">
-                      <TaskHistoryDialog taskId={task.id} actionNumber={task.action_number} />
-                      <TaskCommentsDialog
-                        taskId={task.id}
-                        actionNumber={task.action_number}
-                        canComment={currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'}
-                      />
-                      {canEdit && (
-                        <TaskReassignDialog
-                          taskId={task.id}
-                          currentUserId={currentProfile.id}
-                          dueDate={task.due_date}
-                          staff={owners}
-                        />
-                      )}
-                      {isAdmin && (
-                        <>
-                          <TaskFormDialog
-                            owners={owners}
-                            categories={categories}
-                            findings={findings}
-                            keywords={keywords}
-                            task={task}
-                            trigger={<Button variant="ghost" size="sm">Edit</Button>}
-                          />
-                          <DeleteTaskButton taskId={task.id} actionNumber={task.action_number} />
-                        </>
-                      )}
-                    </div>
-                  </td>
                 </tr>
               )
             })}
             {visibleTasks.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
                   No tasks match your search.
                 </td>
               </tr>
@@ -338,6 +352,15 @@ export function TaskList({
           </tbody>
         </table>
       </div>
+      <TaskDetailPanel
+        task={openTask}
+        currentProfile={currentProfile}
+        owners={owners}
+        categories={categories}
+        findings={findings}
+        keywords={keywords}
+        onClose={() => setOpenTaskId(null)}
+      />
     </div>
   )
 }

@@ -6,6 +6,7 @@ export type NotificationType =
   | 'overdue'
   | 'status-changed'
   | 'new-comment'
+  | 'mentioned'
 
 export interface Notification {
   type: NotificationType
@@ -39,7 +40,10 @@ export function getNotificationsForUser(
   tasks: Task[],
   comments: TaskComment[],
   userId: string,
-  now: Date
+  now: Date,
+  // Own full name, used only to detect an "@Full Name" mention in a comment (Section 14 Phase
+  // 3). Optional so existing call sites/tests that don't care about mentions keep working.
+  userFullName?: string | null
 ): Notification[] {
   const notifications: Notification[] = []
   const today = now.toISOString().slice(0, 10)
@@ -52,11 +56,24 @@ export function getNotificationsForUser(
   const taskById = new Map(tasks.map((t) => [t.id, t]))
 
   for (const comment of comments) {
-    if (comment.author_id === userId) continue
-    if (!myTaskIds.has(comment.task_id)) continue
+    if (comment.author_id === userId || comment.deleted_at) continue
     if (new Date(comment.created_at) < recentChangeCutoff) continue
     const task = taskById.get(comment.task_id)
     if (!task) continue
+
+    // Independent of new-comment below: fires for ANY comment mentioning this user, not just
+    // ones on a task they're attached to (new-comment is scoped to myTaskIds; mentions aren't).
+    if (userFullName && comment.body.includes(`@${userFullName}`)) {
+      notifications.push({
+        type: 'mentioned',
+        taskId: task.id,
+        actionNumber: task.action_number,
+        message: `You were mentioned on ${task.action_number}`,
+        key: `mentioned:${comment.id}`,
+      })
+    }
+
+    if (!myTaskIds.has(comment.task_id)) continue
     notifications.push({
       type: 'new-comment',
       taskId: task.id,

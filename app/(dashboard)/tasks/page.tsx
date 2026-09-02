@@ -4,7 +4,6 @@ import { getCurrentProfile } from '@/lib/auth'
 import { TaskList } from '@/components/tasks/task-list'
 import { TaskFilters } from '@/components/tasks/task-filters'
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog'
-import { Q1Banner } from '@/components/tasks/q1-banner'
 import type { Task } from '@/types'
 
 export default async function TasksPage({
@@ -17,6 +16,7 @@ export default async function TasksPage({
 
   const params = await searchParams
   const supabase = await createServerSupabaseClient()
+  const isAdmin = profile.role === 'admin'
 
   let query = supabase
     .from('tasks')
@@ -25,10 +25,17 @@ export default async function TasksPage({
     )
     .order('action_number', { ascending: true })
 
-  if (params.mine === '1') query = query.or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
+  // Non-admins always see only their own tasks (Owner or Assigned To) -- no "All tasks"
+  // toggle, and no way to view another owner's tasks. Only admins get the "All owners" view
+  // and the by-owner filter below (CLAUDE.md Section 14 Phase 3).
+  if (isAdmin) {
+    if (params.owner) query = query.eq('owner_id', params.owner)
+  } else {
+    query = query.or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
+  }
   if (params.quarter) query = query.eq('quarter', params.quarter)
   if (params.status) query = query.eq('status', params.status)
-  if (params.owner) query = query.eq('owner_id', params.owner)
+  if (params.category) query = query.eq('category_id', params.category)
   if (params.overdue === '1') {
     const today = new Date().toISOString().slice(0, 10)
     query = query.neq('status', 'completed').or(`due_date.lt.${today},next_due.lt.${today}`)
@@ -48,8 +55,7 @@ export default async function TasksPage({
           <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} />
         )}
       </div>
-      <Q1Banner />
-      <TaskFilters owners={owners ?? []} />
+      <TaskFilters owners={owners ?? []} categories={categories ?? []} isAdmin={isAdmin} />
       <TaskList
         tasks={(tasks as Task[]) ?? []}
         currentProfile={profile}

@@ -80,6 +80,8 @@ export interface TaskComment {
   author_id: string | null
   body: string
   created_at: string
+  edited_at: string | null
+  deleted_at: string | null
   author_profile?: Pick<Profile, 'id' | 'full_name'> | null
 }
 

@@ -16,16 +16,18 @@ export async function POST(request: Request) {
 
   if (body.all === true) {
     const now = new Date()
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('*')
-      .or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
-    const taskIds = ((tasks as Task[]) ?? []).map((t) => t.id)
     const recentCutoff = new Date(now.getTime() - RECENTLY_CHANGED_HOURS * 60 * 60 * 1000).toISOString()
-    const { data: comments } = taskIds.length
-      ? await supabase.from('task_comments').select('*').in('task_id', taskIds).gte('created_at', recentCutoff)
-      : { data: [] }
-    const notifications = getNotificationsForUser((tasks as Task[]) ?? [], (comments as TaskComment[]) ?? [], profile.id, now)
+    const [{ data: tasks }, { data: comments }] = await Promise.all([
+      supabase.from('tasks').select('*'),
+      supabase.from('task_comments').select('*').gte('created_at', recentCutoff),
+    ])
+    const notifications = getNotificationsForUser(
+      (tasks as Task[]) ?? [],
+      (comments as TaskComment[]) ?? [],
+      profile.id,
+      now,
+      profile.full_name
+    )
 
     if (notifications.length > 0) {
       const { error } = await supabase.from('notification_reads').upsert(

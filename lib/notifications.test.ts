@@ -41,6 +41,8 @@ function makeComment(overrides: Partial<TaskComment>): TaskComment {
     author_id: OTHER_USER_ID,
     body: 'Looks good',
     created_at: '2026-08-28T00:00:00.000Z',
+    edited_at: null,
+    deleted_at: null,
     ...overrides,
   }
 }
@@ -156,5 +158,36 @@ describe('getNotificationsForUser', () => {
     const comment = makeComment({ author_id: OTHER_USER_ID, created_at: '2026-08-01T00:00:00.000Z' })
     const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
     expect(notifications.some((n) => n.type === 'new-comment')).toBe(false)
+  })
+
+  it('does not notify about a soft-deleted comment', () => {
+    const task = makeTask({ owner_id: USER_ID })
+    const comment = makeComment({ author_id: OTHER_USER_ID, deleted_at: '2026-08-28T01:00:00.000Z' })
+    const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
+    expect(notifications.some((n) => n.type === 'new-comment')).toBe(false)
+  })
+
+  it('notifies a mentioned user even on a task they are not attached to', () => {
+    const task = makeTask({ owner_id: OTHER_USER_ID, assigned_to_id: null })
+    const comment = makeComment({ author_id: OTHER_USER_ID, body: 'cc @Jane Doe please review' })
+    const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW, 'Jane Doe')
+    expect(notifications).toContainEqual({
+      type: 'mentioned', taskId: 't1', actionNumber: 'A1', message: 'You were mentioned on A1',
+      key: 'mentioned:c1',
+    })
+  })
+
+  it('does not notify about a mention of a different name', () => {
+    const task = makeTask({ owner_id: OTHER_USER_ID })
+    const comment = makeComment({ author_id: OTHER_USER_ID, body: 'cc @Someone Else please review' })
+    const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW, 'Jane Doe')
+    expect(notifications.some((n) => n.type === 'mentioned')).toBe(false)
+  })
+
+  it('does not notify about a mention when userFullName is not provided', () => {
+    const task = makeTask({ owner_id: OTHER_USER_ID })
+    const comment = makeComment({ author_id: OTHER_USER_ID, body: 'cc @Jane Doe please review' })
+    const notifications = getNotificationsForUser([task], [comment], USER_ID, NOW)
+    expect(notifications.some((n) => n.type === 'mentioned')).toBe(false)
   })
 })
