@@ -13,6 +13,7 @@ const NAV_ITEMS: { href: string; label: string; roles?: Profile['role'][] }[] = 
   { href: '/competitors', label: 'Competitors' },
   { href: '/keywords', label: 'Keywords' },
   { href: '/audit', label: 'Audit Reports' },
+  { href: '/leads', label: 'Leads', roles: ['admin'] },
   { href: '/admin', label: 'Admin', roles: ['admin'] },
 ]
 
