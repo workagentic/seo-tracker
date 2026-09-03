@@ -53,7 +53,7 @@ export default async function TasksPage({
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Task Tracker</h1>
         {canManageAllTasks && (
-          <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} />
+          <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} currentProfile={profile} />
         )}
       </div>
       <TaskFilters owners={owners ?? []} categories={categories ?? []} isAdmin={canManageAllTasks} />

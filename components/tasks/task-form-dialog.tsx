@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
-import { TaskFields, emptyTaskForm } from './task-fields'
+import { TaskFields, emptyTaskForm, type TaskFormValues } from './task-fields'
+import type { Profile } from '@/types'
 
 // Creation only -- editing an existing task moved into the task detail panel's edit section
 // in Phase 3 (CLAUDE.md Section 14), which absorbed what used to be this dialog's edit mode.
@@ -13,15 +14,29 @@ export function TaskFormDialog({
   categories = [],
   findings = [],
   keywords = [],
+  currentProfile,
 }: {
   owners: { id: string; full_name: string }[]
   categories?: { id: string; name: string }[]
   findings?: { id: string; title: string }[]
   keywords?: { id: string; keyword: string }[]
+  currentProfile: Pick<Profile, 'id' | 'role' | 'full_name'>
 }) {
+  // Senior can create tasks but can't pick a different eligible owner -- they're always fixed
+  // as the Owner of what they create (CLAUDE.md Section 14 follow-up, 3 Sep 2026). Admin keeps
+  // the free choice among the 3 eligible owners, unchanged.
+  const lockOwnerTo =
+    currentProfile.role === 'senior' ? { id: currentProfile.id, full_name: currentProfile.full_name } : null
+
+  function initialForm(): TaskFormValues {
+    const f = emptyTaskForm()
+    if (lockOwnerTo) f.owner_id = lockOwnerTo.id
+    return f
+  }
+
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState(emptyTaskForm())
+  const [form, setForm] = useState<TaskFormValues>(initialForm)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -63,7 +78,7 @@ export function TaskFormDialog({
         return
       }
       setOpen(false)
-      setForm(emptyTaskForm())
+      setForm(initialForm())
       router.refresh()
     } finally {
       setSubmitting(false)
@@ -75,7 +90,7 @@ export function TaskFormDialog({
       <DialogTrigger render={<Button>New Task</Button>} />
       <DialogContent>
         <DialogHeader><DialogTitle>New task</DialogTitle></DialogHeader>
-        <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} />
+        <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} lockOwnerTo={lockOwnerTo} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
           <Button disabled={submitting || !form.title} onClick={handleSubmit}>

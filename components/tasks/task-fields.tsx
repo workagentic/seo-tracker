@@ -56,6 +56,7 @@ export function TaskFields({
   findings = [],
   keywords = [],
   idPrefix = '',
+  lockOwnerTo = null,
 }: {
   form: TaskFormValues
   set: <K extends keyof TaskFormValues>(key: K, value: TaskFormValues[K]) => void
@@ -64,6 +65,10 @@ export function TaskFields({
   findings?: { id: string; title: string }[]
   keywords?: { id: string; keyword: string }[]
   idPrefix?: string
+  // Set when a senior user is creating a task (CLAUDE.md Section 14 follow-up, 3 Sep 2026) --
+  // Tabish/Najma can't pick a different eligible owner, they're always fixed as the Owner of
+  // tasks they create. Renders the Owner field as a fixed display instead of a select.
+  lockOwnerTo?: { id: string; full_name: string } | null
 }) {
   const eligibleOwners = owners.filter((o) => (ELIGIBLE_OWNER_NAMES as readonly string[]).includes(o.full_name))
   const id = (name: string) => `${idPrefix}${name}`
@@ -93,15 +98,24 @@ export function TaskFields({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label htmlFor={id('owner_id')}>Owner</Label>
-          <select
-            id={id('owner_id')}
-            value={form.owner_id ?? ''}
-            onChange={(e) => set('owner_id', e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-          >
-            <option value="">—</option>
-            {eligibleOwners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
-          </select>
+          {lockOwnerTo ? (
+            <div
+              id={id('owner_id')}
+              className="flex h-9 w-full items-center rounded-lg border border-input bg-muted px-2.5 text-sm text-muted-foreground"
+            >
+              {lockOwnerTo.full_name}
+            </div>
+          ) : (
+            <select
+              id={id('owner_id')}
+              value={form.owner_id ?? ''}
+              onChange={(e) => set('owner_id', e.target.value)}
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">—</option>
+              {eligibleOwners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+            </select>
+          )}
         </div>
         <div className="space-y-1">
           <Label htmlFor={id('assigned_to_id')}>Assigned to</Label>

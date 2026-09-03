@@ -16,10 +16,15 @@ export async function POST(request: Request) {
 
   const admin = createAdminSupabaseClient()
 
-  if (body.owner_id) {
+  // Senior is always fixed as the Owner of tasks it creates (CLAUDE.md Section 14 follow-up,
+  // 3 Sep 2026) -- enforced here too, not just hidden in the UI, so a crafted request can't
+  // set a different owner. Admin keeps free choice among the 3 eligible owners.
+  const ownerId = profile.role === 'senior' ? profile.id : body.owner_id
+
+  if (ownerId) {
     const { data: eligible } = await admin.from('profiles').select('id').in('full_name', ELIGIBLE_OWNER_NAMES)
     const eligibleIds = new Set(((eligible as { id: string }[]) ?? []).map((p) => p.id))
-    if (!eligibleIds.has(body.owner_id)) {
+    if (!eligibleIds.has(ownerId)) {
       return NextResponse.json({ error: 'owner_id must be one of the 3 eligible owners' }, { status: 400 })
     }
   }
@@ -34,7 +39,7 @@ export async function POST(request: Request) {
       title: body.title,
       description: body.description || null,
       position_responsible: body.position_responsible || null,
-      owner_id: body.owner_id || null,
+      owner_id: ownerId || null,
       assigned_to_id: body.assigned_to_id || null,
       due_date: body.due_date || null,
       deadline: body.deadline || null,
