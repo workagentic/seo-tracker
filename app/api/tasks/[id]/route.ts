@@ -57,16 +57,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.position_responsible === 'string' || body.position_responsible === null) {
       allowedFields.position_responsible = body.position_responsible
     }
-    if (typeof body.owner_id === 'string' || body.owner_id === null) {
-      if (body.owner_id !== null) {
-        const { data: eligible } = await admin.from('profiles').select('id').in('full_name', ELIGIBLE_OWNER_NAMES)
-        const eligibleIds = new Set(((eligible as { id: string }[]) ?? []).map((p) => p.id))
-        if (!eligibleIds.has(body.owner_id)) {
-          return NextResponse.json({ error: 'owner_id must be one of the 3 eligible owners' }, { status: 400 })
-        }
-      }
-      allowedFields.owner_id = body.owner_id
-    }
     if (typeof body.due_date === 'string' || body.due_date === null) allowedFields.due_date = body.due_date
     if (typeof body.quarter === 'string' || body.quarter === null) allowedFields.quarter = body.quarter
     if (typeof body.category_id === 'string' || body.category_id === null) allowedFields.category_id = body.category_id
@@ -80,13 +70,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       allowedFields.linked_keyword_id = body.linked_keyword_id
     }
   } else if (
-    body.action_number !== undefined || body.title !== undefined || body.owner_id !== undefined ||
+    body.action_number !== undefined || body.title !== undefined ||
     body.due_date !== undefined || body.quarter !== undefined || body.description !== undefined ||
     body.position_responsible !== undefined || body.category_id !== undefined || body.link_url !== undefined ||
     body.repeats !== undefined || body.next_due !== undefined || body.linked_finding_id !== undefined ||
     body.linked_keyword_id !== undefined
   ) {
     return NextResponse.json({ error: 'Only admin/senior can edit task details beyond status/notes/assignment' }, { status: 403 })
+  }
+
+  // Owner is admin-only to change once a task exists -- senior is fixed as Owner only at
+  // creation time (POST /api/tasks), editing an existing task's Owner stays admin-only
+  // (CLAUDE.md Section 14 follow-up, 3 Sep 2026).
+  if (typeof body.owner_id === 'string' || body.owner_id === null) {
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: "Only admin can change a task's Owner" }, { status: 403 })
+    }
+    if (body.owner_id !== null) {
+      const { data: eligible } = await admin.from('profiles').select('id').in('full_name', ELIGIBLE_OWNER_NAMES)
+      const eligibleIds = new Set(((eligible as { id: string }[]) ?? []).map((p) => p.id))
+      if (!eligibleIds.has(body.owner_id)) {
+        return NextResponse.json({ error: 'owner_id must be one of the 3 eligible owners' }, { status: 400 })
+      }
+    }
+    allowedFields.owner_id = body.owner_id
   }
 
   // Validate deadline <= due_date using whichever of the two is being set in this request,

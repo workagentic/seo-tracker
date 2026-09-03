@@ -148,6 +148,14 @@ export function TaskDetailPanel({
   const canEditStructural = currentProfile.role === 'admin' || currentProfile.role === 'senior'
   // canEditTaskStatus already covers admin/senior internally -- no need to repeat that check.
   const canEditAssignment = !!task && canEditTaskStatus(task, currentProfile)
+  // Owner is admin-only to change on an existing task -- senior is fixed as Owner only at
+  // creation time (CLAUDE.md Section 14 follow-up, 3 Sep 2026). Shown as a fixed display of
+  // the task's current Owner (not necessarily this viewer) rather than a select.
+  const canEditOwner = currentProfile.role === 'admin'
+  const ownerLockedTo =
+    canEditStructural && !canEditOwner && task
+      ? { id: task.owner_id ?? '', full_name: task.owner_profile?.full_name ?? '—' }
+      : null
 
   const [form, setForm] = useState(emptyTaskForm(task ?? undefined))
   const [saving, setSaving] = useState(false)
@@ -221,24 +229,27 @@ export function TaskDetailPanel({
     setError(null)
     setSaving(true)
     try {
+      const payload: Record<string, unknown> = {
+        title: form.title,
+        description: form.description || null,
+        assigned_to_id: form.assigned_to_id || null,
+        due_date: form.due_date || null,
+        deadline: form.deadline || null,
+        quarter: form.quarter || null,
+        category_id: form.category_id || null,
+        link_url: form.link_url || null,
+        repeats: form.repeats || null,
+        next_due: form.next_due || null,
+        linked_finding_id: form.linked_finding_id || null,
+        linked_keyword_id: form.linked_keyword_id || null,
+      }
+      // Owner is admin-only to change -- senior never sends it, even unchanged, since the API
+      // now rejects any owner_id from a non-admin (CLAUDE.md Section 14 follow-up, 3 Sep 2026).
+      if (canEditOwner) payload.owner_id = form.owner_id || null
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description || null,
-          owner_id: form.owner_id || null,
-          assigned_to_id: form.assigned_to_id || null,
-          due_date: form.due_date || null,
-          deadline: form.deadline || null,
-          quarter: form.quarter || null,
-          category_id: form.category_id || null,
-          link_url: form.link_url || null,
-          repeats: form.repeats || null,
-          next_due: form.next_due || null,
-          linked_finding_id: form.linked_finding_id || null,
-          linked_keyword_id: form.linked_keyword_id || null,
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -403,7 +414,7 @@ export function TaskDetailPanel({
                 <h3 className="text-sm font-semibold text-foreground">Details</h3>
                 {canEditStructural ? (
                   <>
-                    <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} idPrefix="panel_" />
+                    <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} idPrefix="panel_" lockOwnerTo={ownerLockedTo} />
                     {error && <p className="text-sm text-destructive">{error}</p>}
                     <div className="flex gap-2">
                       <Button size="sm" disabled={saving || !form.title} onClick={saveDetails}>
