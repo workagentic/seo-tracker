@@ -1,5 +1,8 @@
-# EA SEO Tracker — Internal Tool
+# EA Marketing Tracker — Internal Tool
 ## Claude Code Project Specification
+
+*Renamed from "EA SEO Tracker" 3 Sep 2026 — same app, same tables, just the display name
+(page title, login page, sidebar) — see the 3 Sep 2026 session entry at the end of Section 14.*
 
 ---
 
@@ -89,18 +92,28 @@ ea-seo-tracker/
 
 ## 4. User Roles & Permissions
 
-There are four roles. Store role in the `profiles` table.
+**Renamed 3 Sep 2026 (migration `0028_role_rename.sql`, see the 3 Sep 2026 session entry at the
+end of Section 14) — supersedes this whole section as it read before that date.** The DB role
+values themselves changed from `admin`/`head`/`owner`/`leadership` to
+`admin`/`senior`/`expert`/`reviewer`, to match the business's own vocabulary rather than
+permanently disagreeing with it. There are still four roles, stored in `profiles.role`.
 
 | Role | Who | What they can see |
 |---|---|---|
-| `admin` | Abdullah Shekha, Syed Ali, Haroon (updated 28 Aug 2026 — see Section 12.10) | Everything. Can manage users, competitors, keywords, metric snapshots, all tasks |
-| `head` | *(vacant as of 28 Aug 2026 — Tabish moved to `owner`, see Section 12.10)* | Everything except user management. Can edit all tasks, run quarterly review |
-| `owner` | Tabish Khalid, and all other named team members not listed above | Their own tasks + dashboard + scorecard (read-only on others' tasks) |
-| `leadership` | Adeela | Full read access everywhere. Cannot edit tasks or data |
+| `admin` | Abdullah Shekha, Syed Ali, Haroon | Everything, including `/admin/users` (the one admin-only sub-page) |
+| `senior` | Tabish Khalid, Najma Furqan (renamed from `owner`) | Near-admin: full read/write on every `/admin/*` sub-page except Users, sync buttons everywhere, can create New Tasks and edit all tasks' structural fields — but Owner (the task-level field, Section 8.3) is admin-only to set or change |
+| `expert` | Talha Azeem, Usman Ali, Lavi Shamoon, Hameed Ishaq (renamed from `owner`) | Unchanged broad read-only access to Dashboard/Scorecard/Competitors/Keywords/Audit/Weekly-report, plus full self-service on tasks they're Owner/Assigned-To on |
+| `reviewer` | Adeela (renamed from `leadership`) | **Restricted to only the Tasks page** — lost the broad team-wide read access `leadership` had everywhere else; within Tasks, has the same permissions `expert` has |
 
-**Route protection:** `middleware.ts` checks Supabase session on every request. Unauthenticated users are redirected to `/login`. Admin-only routes (`/admin/*`) check role server-side.
+**Route protection:** `middleware.ts` checks Supabase session on every request. Unauthenticated
+users are redirected to `/login`. `/admin/*` requires `admin` or `senior`, except
+`/admin/users` which requires `admin` exactly. `reviewer` is redirected to `/tasks` from any
+other route.
 
-**Row-level security (Supabase):** Enable RLS on all tables. `owner` role users can only `UPDATE` rows in `tasks` where `assigned_to = auth.uid()`. All roles can `SELECT` all tasks (team visibility is important for coordination).
+**Row-level security (Supabase):** Enable RLS on all tables. `expert`/`senior` role users can
+`UPDATE` rows in `tasks` where they're Owner or Assigned To (`owner_id`/`assigned_to_id` —
+Section 8.3's ownership model, not the original `assigned_to` column this row once described).
+All roles can `SELECT` all tasks (team visibility is important for coordination).
 
 ---
 
@@ -1440,24 +1453,19 @@ Section 7.4.
 **9. Data is additive.** Never delete or overwrite historical `metric_snapshots`. Each quarter-end creates a new row. Historical rows are read-only once created.
 
 **10. Multiple admins as of 28 Aug 2026 (supersedes the original "Abdullah is the only
-admin" rule).** Abdullah Shekha requested Syed Ali and Haroon be promoted to `admin`, and
-Tabish Khalid moved from `head` to `owner` (so the `head` role is currently vacant). Nothing
-in code enforced a single-admin constraint (it was a documented convention, not a DB
-constraint or check), so this was a plain `profiles.role` update for the three affected
-rows — no schema or RLS change needed, since every `admin`-gated check already compares
-`role === 'admin'` generically rather than a specific user. Current authoritative roles:
+admin" rule) — itself superseded 3 Sep 2026 by the role rename (migration `0028`, Section 4).**
+Abdullah Shekha requested Syed Ali and Haroon be promoted to `admin`, and Tabish Khalid moved
+from `head` to `owner` (so the `head` role was vacant, and later retired entirely in the 3 Sep
+2026 rename). Nothing in code enforced a single-admin constraint (it was a documented
+convention, not a DB constraint or check), so this was a plain `profiles.role` update for the
+three affected rows — no schema or RLS change needed, since every `admin`-gated check already
+compares `role === 'admin'` generically rather than a specific user. **Current authoritative
+roles now live in Section 4's table** (admin/senior/expert/reviewer, not admin/head/owner/
+leadership) — this section is kept only as history for the naming Tabish/Najma/etc. used to
+carry.
 
-| Full Name | Role |
-|---|---|
-| Abdullah Shekha | admin |
-| Syed Ali | admin |
-| Haroon | admin |
-| Tabish Khalid | owner |
-| Talha Azeem, Usman Ali, Najma Furqan, Lavi Shamoon, Hameed Ishaq | owner |
-| Adeela | leadership |
-
-If this needs to change again, update `profiles.role` directly (no admin UI exists for
-bulk role changes) and update this section plus Section 4's role table to match.
+If roles need to change again, update `profiles.role` directly (no admin UI exists for bulk
+role changes) and update Section 4's table to match.
 
 **11. Scorecard Target vs. Actual are deliberately separate editable surfaces (28 Aug
 2026).** `/scorecard/edit` (admin only) edits **Target** numbers in `quarterly_targets`.
@@ -1834,5 +1842,149 @@ manual application via the Supabase SQL editor.** Scorecard enhancements:
 
 ---
 
-*This document is the single source of truth for the EA SEO Tracker build. Update it as the project evolves.*
-*Last updated: 2 September 2026 — Abdullah Shekha*
+## 15. 3 September 2026 Session
+
+Six requests from Abdullah, done in order, each pushed to `origin/master` as its own commit.
+All migrations below are confirmed applied (Abdullah ran each and reported success before the
+next was started), except `0031` which is still pending — see its own note below.
+
+**1. Role rename** — `admin`/`head`/`owner`/`leadership` → `admin`/`senior`/`expert`/`reviewer`
+(migration `0028_role_rename.sql`, confirmed applied). See Section 4 for the authoritative
+table; the practical grants: senior gets New Task creation, sync buttons everywhere, and full
+read/write on `/admin/*` except Users; expert is unchanged from what `owner` had; reviewer is
+newly hard-restricted to only `/tasks` (middleware + sidebar).
+*Bug fixed mid-migration:* the first version of `0028` reassigned roles to the new values
+**before** swapping the `profiles_role_check` CHECK constraint, so the very first `UPDATE`
+violated the still-old constraint. Fixed by reordering: drop constraint → reassign → re-add
+constraint.
+
+**2. Task deletion** — `0029_delete_all_tasks.sql` (confirmed applied): cleared the entire
+92-task September sprint register so Najma/Tabish/Syed can rebuild the real list manually.
+No backup taken (Abdullah's explicit call).
+
+**3. `action_number` made optional** — `0030_action_number_optional.sql` (confirmed applied):
+column is now nullable, removed entirely from the New Task form (Section 8.3's sprint-sheet
+codes don't apply to manually-created tasks anymore). Every place that displayed it
+(`TaskDetailPanel`'s `SheetTitle`, `AuditCard`'s linked-task badge, `lib/notifications.ts`'s
+`taskLabel()`, the weekly report's task list, `task-list.tsx`'s CSV export) now falls back to
+the task's title when it's null.
+
+**4. Owner locked for Senior** — a follow-up bug report: Senior could create/edit tasks and
+still pick a *different* eligible owner from the dropdown, defeating the point of granting
+Senior task creation at all. Fixed in two places: on **creation**, `TaskFormDialog` shows a
+fixed "Owner: you" display instead of a select when the creator is `senior` (Admin/Syed Ali
+keeps the free 3-way choice); on **editing an existing task**, Owner became **admin-only** to
+change, period — `TaskDetailPanel`'s Details section shows the current Owner as a read-only
+display for anyone who isn't admin. Enforced server-side in both `POST /api/tasks` and
+`PATCH /api/tasks/[id]` (the PATCH route now 403s any `owner_id` from a non-admin caller,
+even an unchanged one — the client no longer sends it unless the viewer is admin).
+
+**5. Task lock on Completed/On Hold + 2 status options for Expert** — a follow-up rule
+request: once a task is marked Completed or On Hold, its current Assigned To loses *all*
+further control on it — status, reassigning, notes, and commenting (posting, and
+editing/deleting their own past comments) — until the Owner (or admin/senior, unaffected by
+the lock) moves it back to pending/in_progress. Also, Expert's status options were cut from 3
+to exactly 2 (`pending`/`in_progress`) — `on_hold` is no longer something Expert/reviewer can
+set themselves, which is what makes the lock coherent (on_hold only ever gets set by
+Owner/admin/senior now). `lib/tasks/permissions.ts`'s `getAllowedStatuses`/`canEditTaskStatus`
+gained this logic, plus a new `canCommentOnTask` used both client-side (`TaskDetailPanel`) and
+server-side (`PATCH /api/tasks/[id]`, and all three routes under
+`/api/tasks/[id]/comments`). No migration needed.
+
+**6. Accurate change notifications for the task Owner** — the old `status-changed`
+notification actually fired for *any* field change on a task (reassignment, notes — not just
+status), because it was driven by `tasks.updated_by`/`updated_at`, and its message text always
+said "status changed to X" regardless of what actually changed. Replaced with three
+notification types driven by `task_activity` instead (per-field, accurate): `status-changed`,
+`reassigned`, `notes-updated`. `lib/notifications.ts`'s `getNotificationsForUser` gained a
+third parameter (`activity: TaskActivity[]`), and both `app/api/notifications/route.ts` and
+`.../mark/route.ts` now also fetch recent `task_activity` rows to pass in. Side effect: this
+closed a known gap from Section 14 Phase 6 — a mid-life reassignment now correctly notifies
+the *new* assignee, not just whoever changed it.
+
+**App rename** — "EA SEO Tracker" → "EA Marketing Tracker" (page title/metadata, login page,
+sidebar). See the note under the H1 at the top of this document.
+
+**Screenshot paste in Comments and Notes** — new feature, migration
+`0031_task_attachments.sql` (**not yet confirmed applied** — needs the Supabase Storage
+bucket enabled first if it isn't already, then this migration run; see its own comments for
+exact bucket-size/MIME-type settings if creating the bucket manually via the dashboard UI
+instead of the migration's `insert into storage.buckets`). First use of Supabase Storage in
+this project (previously documented in Section 8.3's "Link to review" note as deliberately
+not built).
+- Shared upload endpoint `POST /api/uploads/task-image` (5MB cap, PNG/JPEG/GIF/WebP only,
+  `app/api/uploads/task-image/route.ts`) — any authenticated profile can call it; the real
+  permission gate is at the point of use (posting a comment / saving notes), not the upload.
+- **Comments** can carry multiple pasted screenshots (new `task_comment_images` table) —
+  paste while composing, get a removable thumbnail, post; images are fixed once posted (no
+  edit, only delete-and-repost). Rendered as a thumbnail row under each comment.
+- **Notes** became a minimal rich-text editor (`components/tasks/notes-editor.tsx`, Tiptap) —
+  paragraphs and inline pasted images only, **no formatting toolbar** (deliberate scope call —
+  Abdullah wanted Word-like inline images, not a full rich-text feature set).
+  `tasks.notes` keeps its `text` column but now stores sanitized HTML
+  (`lib/tasks/notes-sanitize.ts`, allowlists `p`/`br`/`img`, applied server-side in the tasks
+  PATCH route regardless of what the editor sends) instead of plain text; old plain-text notes
+  still load correctly (`lib/tasks/notes-html.ts` wraps them into a paragraph on read). The
+  Activity History log's notes diff now shows "(content updated)" instead of dumping raw HTML.
+- New deps: `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-image`,
+  `sanitize-html`.
+
+**Two small follow-up bug fixes:**
+- The `@mention` dropdown in Comments was hard-capped at 5 matches with no way to scroll to
+  the rest — removed the cap (9-person team, no real risk) and made the list scrollable.
+- The Reassign box's "Assigned to" select showed both a hardcoded "Myself" option *and* the
+  current viewer's own name from the full `owners` list — same person, two entries. Filtered
+  the current profile out of the mapped list.
+
+**Session paused 3 Sep 2026 — resume here next session.** Two things Abdullah wants to
+discuss, both still open (no code written for either):
+
+1. **Replicating this app for a second business ("WA")**, as a fully separate deployment
+   (own Supabase project, own Vercel deployment, same codebase). Research done this session
+   (background Explore agent) found the codebase is *mostly* already reusable as-is — most
+   business config moved to admin-editable DB tables over the course of this project
+   (`quarterly_targets`, `metric_accountability`, `task_categories`, lead sources, `app_settings`
+   for domain/GSC/GA4) — but a handful of things are still hardcoded in code, not data, and
+   would need to change first:
+   - `lib/tasks/constants.ts`'s `ELIGIBLE_OWNER_NAMES` (`['Tabish Khalid', 'Syed Ali', 'Najma
+     Furqan']`) — used live in the task Owner field validation across 3 files.
+   - `lib/constants.ts`'s `TEAM_MEMBERS` — only used by `scripts/seed-users.ts`, but that
+     script also hardcodes the email pattern `${first.last}@eaccelerated.com`
+     (`scripts/seed-users.ts` line ~13).
+   - `app/layout.tsx`'s page title/description (already just plain strings, trivial to swap
+     per deployment, but currently EA-specific).
+   - `components/competitors/competitor-table.tsx` hardcodes the "Expertise Accelerated (EA)"
+     row label / `expertiseaccelerated.com`.
+   - `types/index.ts`'s `LeadBrand` enum (`'workagentic' | 'expertise_accelerated'`, Section
+     8.10) — notably, "WorkAgentic" is *already* a hardcoded second brand option in the Leads
+     Kanban's brand-tagging field; a true second-business deployment would need this reworked.
+   - `QUARTERLY_TARGETS`/`ACCOUNTABILITY_MAP` in `lib/constants.ts` and the
+     `app_settings.target_domain` migration default (`0004`) are confirmed **low-priority** —
+     all three are just fallback/seed values, the live source of truth is already DB tables/
+     admin-editable settings.
+   Recommendation not yet confirmed with Abdullah: same-codebase, two-deployment approach
+   (Option A: separate Supabase project + separate Vercel project, same repo) over a full
+   multi-tenant rearchitecture (much bigger, not needed for 2 businesses) or a literal repo
+   fork (doubles maintenance for every future bug fix/feature). Needs the handful of items
+   above moved to config/env vars first to be clean.
+2. **An admin-only "AI Analysis" tab** — a chat interface backed by an LLM (Claude) with
+   access to this app's data (tasks, metric_snapshots, quarterly_targets, competitors,
+   keywords, audit findings, etc.), so an admin can ask free-form questions like "How good are
+   we progressing" or "Who has the most tasks overdue?" Two design decisions were about to be
+   asked when the session was interrupted, still open:
+   - **Data access approach**: tool-calling (Claude gets callable tools like "get overdue
+     tasks", decides what to query per question — more accurate as data grows, not yet
+     confirmed) vs. a full context dump every message (simpler, but gets expensive/unreliable
+     as the dataset grows).
+   - **Chat history**: saved per-admin thread (new DB table, same pattern as `task_comments`)
+     vs. ephemeral (resets each session).
+   Also needs: a new `ANTHROPIC_API_KEY` env var (this would be this project's first direct
+   LLM API integration — a new cost center, billed separately from existing tool subscriptions),
+   and confirmation the "admin-only" scope means `admin` exactly (matching `/admin/users`) or
+   `admin`+`senior` (matching most other admin-adjacent grants from this session's role
+   rename).
+
+---
+
+*This document is the single source of truth for the EA Marketing Tracker build. Update it as the project evolves.*
+*Last updated: 3 September 2026 — Abdullah Shekha*
