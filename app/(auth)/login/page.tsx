@@ -9,7 +9,7 @@ export default async function LoginPage({
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold text-foreground">EA SEO Tracker</h1>
+        <h1 className="mb-1 text-xl font-semibold text-foreground">EA Marketing Tracker</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in with your EA account</p>
         {error && (
           <p className="mb-4 rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>

@@ -14,7 +14,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "EA SEO Tracker",
+  title: "EA Marketing Tracker",
   description: "Internal SEO tracking and accountability dashboard for the Expertise Accelerated SEO team.",
 };
 

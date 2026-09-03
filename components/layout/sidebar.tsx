@@ -29,7 +29,7 @@ export function Sidebar({ role }: { role: Profile['role'] }) {
 
   return (
     <nav className="flex h-full w-56 flex-col gap-1 border-r border-border bg-card p-4">
-      <div className="mb-4 px-2 text-lg font-semibold text-foreground">EA SEO Tracker</div>
+      <div className="mb-4 px-2 text-lg font-semibold text-foreground">EA Marketing Tracker</div>
       {items.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
         return (
