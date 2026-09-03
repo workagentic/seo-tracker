@@ -12,19 +12,23 @@
 -- read access 'leadership' had everywhere else), but within Tasks gets the same permissions
 -- 'expert' has (comment, self-manage tasks she's Owner/Assigned-To on).
 
--- 1. Reassign people BEFORE swapping the CHECK constraint (old values still valid here).
+-- 1. Drop the CHECK constraint FIRST (auto-named profiles_role_check, from the inline `check`
+--    in migration 0001_initial_schema.sql's CREATE TABLE) -- the new role names ('senior',
+--    'expert', 'reviewer') aren't valid under the OLD constraint, so reassigning people to
+--    them has to happen with no constraint in the way, not before swapping it.
+alter table profiles drop constraint if exists profiles_role_check;
+
+-- 2. Reassign people now that nothing blocks the new values.
 update profiles set role = 'senior' where full_name in ('Najma Furqan', 'Tabish Khalid');
 update profiles set role = 'expert' where full_name in ('Hameed Ishaq', 'Usman Ali', 'Lavi Shamoon', 'Talha Azeem');
 update profiles set role = 'reviewer' where full_name = 'Adeela';
 -- admin holders (Haroon, Abdullah Shekha, Syed Ali) are untouched.
 
--- 2. Swap the CHECK constraint (auto-named profiles_role_check, from the inline `check` in
---    migration 0001_initial_schema.sql's CREATE TABLE).
-alter table profiles drop constraint if exists profiles_role_check;
+-- 3. Add the new CHECK constraint back now that every row already satisfies it.
 alter table profiles add constraint profiles_role_check
   check (role in ('admin', 'senior', 'expert', 'reviewer'));
 
--- 3. RLS: every policy that referenced 'head' as an admin-equivalent tier moves to 'senior'
+-- 4. RLS: every policy that referenced 'head' as an admin-equivalent tier moves to 'senior'
 --    (mechanical swap -- 'senior' inherits exactly what 'head' was already granted). Policies
 --    renamed to match (dropped and recreated under a new name) rather than left calling
 --    themselves "admin_head" forever.
@@ -96,14 +100,14 @@ create policy "settings_select_admin_senior" on app_settings for select using (
   current_role_name() in ('admin', 'senior')
 );
 
--- 4. tasks_update_owner: the self-service row-level policy (non-admin editing a task they're
+-- 5. tasks_update_owner: the self-service row-level policy (non-admin editing a task they're
 --    Owner/Assigned-To on). 'owner' role split into 'senior'/'expert', both keep this.
 drop policy if exists "tasks_update_owner" on tasks;
 create policy "tasks_update_owner" on tasks for update using (
   current_role_name() in ('senior', 'expert') and (owner_id = auth.uid() or assigned_to_id = auth.uid())
 );
 
--- 5. tasks_update_assigned_leadership -> tasks_update_assigned_reviewer: same shape (the
+-- 6. tasks_update_assigned_leadership -> tasks_update_assigned_reviewer: same shape (the
 --    Assigned-To-only carve-out a role that's otherwise not Owner-eligible needs), renamed
 --    for the new role. Reviewer is never Owner-eligible (ELIGIBLE_OWNER_NAMES is unchanged --
 --    Tabish Khalid/Syed Ali/Najma Furqan by name), so this only ever matches via
