@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { canCommentOnTask } from '@/lib/tasks/permissions'
+import type { Task } from '@/types'
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,16 +25,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  // Every current role can comment (reviewer included, since within Tasks reviewer's
-  // permissions match expert's -- CLAUDE.md Section 14) -- no further gate beyond
-  // authentication.
+
+  const admin = createAdminSupabaseClient()
+  // Every role can normally comment (reviewer included, since within Tasks reviewer's
+  // permissions match expert's -- CLAUDE.md Section 14); once the task is locked (Completed/
+  // On Hold), only the Owner and admin/senior retain that (Section 14 follow-up, 3 Sep 2026).
+  const { data: task } = (await admin.from('tasks').select('*').eq('id', id).single()) as unknown as {
+    data: Task | null
+  }
+  if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canCommentOnTask(task, profile)) {
+    return NextResponse.json({ error: 'Commenting is locked while this task is Completed or On Hold' }, { status: 403 })
+  }
 
   const body = await request.json()
   if (typeof body.body !== 'string' || !body.body.trim()) {
     return NextResponse.json({ error: 'Comment body is required' }, { status: 400 })
   }
-
-  const admin = createAdminSupabaseClient()
   const { data, error } = await admin
     .from('task_comments')
     .insert({ task_id: id, author_id: profile.id, body: body.body.trim() } as never)

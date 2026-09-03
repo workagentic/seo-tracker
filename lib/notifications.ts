@@ -1,10 +1,12 @@
-import type { Task, TaskComment } from '@/types'
+import type { Task, TaskActivity, TaskComment } from '@/types'
 
 export type NotificationType =
   | 'assigned'
   | 'deadline-soon'
   | 'overdue'
   | 'status-changed'
+  | 'reassigned'
+  | 'notes-updated'
   | 'new-comment'
   | 'mentioned'
 
@@ -14,20 +16,21 @@ export interface Notification {
   actionNumber: string
   message: string
   // Stable per notification *instance*, not just per (type, task) -- includes whatever
-  // timestamp/value changes when a fresh instance of that notification would fire again (e.g.
-  // status-changed keys on updated_at, so reading one status change doesn't suppress the next).
-  // Used to track read/unread (notification_reads table, migration 0020) since notifications
-  // are computed live, not stored rows.
+  // timestamp/id changes when a fresh instance of that notification would fire again (e.g.
+  // status-changed/reassigned/notes-updated key on their source task_activity row's own id,
+  // so reading one change doesn't suppress the next). Used to track read/unread
+  // (notification_reads table, migration 0020) since notifications are computed live, not
+  // stored rows.
   key: string
 }
 
 const DEADLINE_SOON_DAYS = 3
 export const RECENTLY_CHANGED_HOURS = 48
-// There is no "assigned_at" timestamp, so "newly assigned to me" is approximated via
-// created_at recency, which only fires for a genuinely new task. Known gap (CLAUDE.md Section
-// 14 Phase 2): a mid-life reassignment (assigned_to_id changing on an existing task, now a
-// core operation in the new ownership model) doesn't notify the new assignee here -- doing
-// that properly needs task_activity entries in this function's inputs, not just `tasks`.
+// There is no "assigned_at" timestamp, so "newly assigned to me" (a genuinely NEW task) is
+// approximated via created_at recency. A mid-life reassignment on an existing task is a
+// different case, covered separately below by the 'reassigned' notification (which is driven
+// by task_activity and does reach the new assignee, closing what used to be a known gap here
+// -- CLAUDE.md Section 14 follow-up, 3 Sep 2026).
 const RECENTLY_CREATED_DAYS = 7
 
 function daysFromNow(now: Date, days: number): string {
@@ -45,6 +48,12 @@ function taskLabel(task: Task): string {
 export function getNotificationsForUser(
   tasks: Task[],
   comments: TaskComment[],
+  // Recent task_activity rows (CLAUDE.md Section 14 follow-up, 3 Sep 2026) -- replaces the old
+  // task.updated_by/updated_at heuristic, which fired a "status changed" notification for ANY
+  // field change (notes, reassignment, ...), even when status itself hadn't moved. Activity is
+  // per-field (one row per changed field per PATCH -- lib/tasks/activity.ts), so each
+  // notification below can now say accurately what actually changed.
+  activity: TaskActivity[],
   userId: string,
   now: Date,
   // Own full name, used only to detect an "@Full Name" mention in a comment (Section 14 Phase
@@ -131,13 +140,45 @@ export function getNotificationsForUser(
       })
     }
 
-    if (task.updated_by && task.updated_by !== userId && new Date(task.updated_at) >= recentChangeCutoff) {
+  }
+
+  // Owner (and, same as everywhere else in this list, the current Assigned To) gets a
+  // specific notification per changed field, whenever someone else -- most often the assigned
+  // expert working the task day to day -- changes status, reassigns it, or updates notes on a
+  // task they own or are attached to (confirmed with Abdullah 3 Sep 2026). Deadline-only
+  // changes are deliberately not surfaced here -- in practice they're set together with
+  // assigned_to_id as part of one reassignment (already covered below), and a standalone
+  // deadline edit is rare enough not to be worth a fifth notification type.
+  for (const entry of activity) {
+    if (!entry.changed_by || entry.changed_by === userId) continue
+    if (new Date(entry.created_at) < recentChangeCutoff) continue
+    const task = taskById.get(entry.task_id)
+    if (!task || !myTaskIds.has(entry.task_id)) continue
+
+    if (entry.field === 'status') {
+      const label = (entry.new_value ?? '').replace(/_/g, ' ')
       notifications.push({
         type: 'status-changed',
         taskId: task.id,
         actionNumber: taskLabel(task),
-        message: `${taskLabel(task)}'s status changed to "${task.status.replace('_', ' ')}"`,
-        key: `status-changed:${task.id}:${task.updated_at}`,
+        message: `${taskLabel(task)}'s status changed to "${label}"`,
+        key: `status-changed:${entry.id}`,
+      })
+    } else if (entry.field === 'assigned_to_id') {
+      notifications.push({
+        type: 'reassigned',
+        taskId: task.id,
+        actionNumber: taskLabel(task),
+        message: `${taskLabel(task)} was reassigned`,
+        key: `reassigned:${entry.id}`,
+      })
+    } else if (entry.field === 'notes') {
+      notifications.push({
+        type: 'notes-updated',
+        taskId: task.id,
+        actionNumber: taskLabel(task),
+        message: `${taskLabel(task)}'s notes were updated`,
+        key: `notes-updated:${entry.id}`,
       })
     }
   }

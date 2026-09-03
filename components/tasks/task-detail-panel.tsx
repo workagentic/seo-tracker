@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { TaskFields, emptyTaskForm } from './task-fields'
 import { TaskStatusSelect } from './task-status-select'
-import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
+import { canEditTaskStatus, canCommentOnTask, getAllowedStatuses } from '@/lib/tasks/permissions'
 import type { Profile, Task, TaskActivity, TaskComment } from '@/types'
 
 const FIELD_LABELS: Record<string, string> = {
@@ -40,16 +40,23 @@ function CommentRow({
   comment,
   currentProfile,
   onChanged,
+  canModify,
 }: {
   comment: TaskComment
   currentProfile: Profile
   onChanged: () => void
+  // Whether this viewer currently has any edit rights on the task at all (false once a task
+  // is locked -- Completed/On Hold -- and the viewer isn't the Owner or admin/senior, CLAUDE.md
+  // Section 14 follow-up, 3 Sep 2026). Gates editing/deleting their OWN past comment; admin/
+  // senior's moderation delete of ANY comment is unaffected.
+  canModify: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(comment.body)
   const [busy, setBusy] = useState(false)
   const isAuthor = comment.author_id === currentProfile.id
-  const canDelete = isAuthor || ['admin', 'senior'].includes(currentProfile.role)
+  const canDelete = (isAuthor && canModify) || ['admin', 'senior'].includes(currentProfile.role)
+  const canEditOwn = isAuthor && canModify
 
   async function save() {
     if (!draft.trim()) return
@@ -108,7 +115,7 @@ function CommentRow({
               {comment.author_profile?.full_name ?? 'Someone'} · {new Date(comment.created_at).toLocaleString()}
               {comment.edited_at && ' (edited)'}
             </span>
-            {isAuthor && (
+            {canEditOwn && (
               <button type="button" className="text-indigo-600 hover:underline" onClick={() => setEditing(true)}>
                 Edit
               </button>
@@ -356,9 +363,10 @@ export function TaskDetailPanel({
     }
   }
 
-  // Every current role can comment (reviewer included -- within Tasks, reviewer's permissions
-  // match expert's, CLAUDE.md Section 14).
-  const canComment = true
+  // Any role can comment normally (reviewer included -- within Tasks, reviewer's permissions
+  // match expert's, CLAUDE.md Section 14); once the task is locked (Completed/On Hold), only
+  // the Owner and admin/senior retain that (Section 14 follow-up, 3 Sep 2026).
+  const canComment = !!task && canCommentOnTask(task, currentProfile)
   const allowedStatuses = task ? getAllowedStatuses(task, currentProfile) : []
   const canEditNotes = canEditAssignment
 
@@ -382,6 +390,13 @@ export function TaskDetailPanel({
                     linkedFindingTitle={task.linked_finding?.title ?? null}
                   />
                 </div>
+
+                {!canEditStructural && !canEditAssignment && (task.status === 'completed' || task.status === 'on_hold') && (
+                  <p className="text-xs text-muted-foreground">
+                    This task is locked while {task.status === 'completed' ? 'Completed' : 'On Hold'} — only the
+                    Owner can make changes until it&apos;s moved back to Pending or In Progress.
+                  </p>
+                )}
 
                 {!canEditStructural && canEditAssignment && (
                   <div className="rounded-md border border-border bg-muted/30 p-3">
@@ -463,9 +478,14 @@ export function TaskDetailPanel({
                 {!loadingComments && comments.length > 0 && (
                   <ul className="space-y-3">
                     {comments.map((c) => (
-                      <CommentRow key={c.id} comment={c} currentProfile={currentProfile} onChanged={() => loadComments(task.id)} />
+                      <CommentRow key={c.id} comment={c} currentProfile={currentProfile} onChanged={() => loadComments(task.id)} canModify={canComment} />
                     ))}
                   </ul>
+                )}
+                {!canComment && (task.status === 'completed' || task.status === 'on_hold') && (
+                  <p className="text-xs text-muted-foreground">
+                    Commenting is locked while this task is {task.status === 'completed' ? 'Completed' : 'On Hold'}.
+                  </p>
                 )}
                 {canComment && (
                   <div className="relative space-y-2">

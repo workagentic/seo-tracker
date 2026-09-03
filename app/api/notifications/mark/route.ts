@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getNotificationsForUser, RECENTLY_CHANGED_HOURS } from '@/lib/notifications'
-import type { Task, TaskComment } from '@/types'
+import type { Task, TaskActivity, TaskComment } from '@/types'
 
 // Personal, low-privilege data -- uses the caller's own session client (RLS-scoped to
 // auth.uid(), migration 0020), not the service-role admin client used for cross-user writes
@@ -17,13 +17,15 @@ export async function POST(request: Request) {
   if (body.all === true) {
     const now = new Date()
     const recentCutoff = new Date(now.getTime() - RECENTLY_CHANGED_HOURS * 60 * 60 * 1000).toISOString()
-    const [{ data: tasks }, { data: comments }] = await Promise.all([
+    const [{ data: tasks }, { data: comments }, { data: activity }] = await Promise.all([
       supabase.from('tasks').select('*'),
       supabase.from('task_comments').select('*').gte('created_at', recentCutoff),
+      supabase.from('task_activity').select('*').gte('created_at', recentCutoff),
     ])
     const notifications = getNotificationsForUser(
       (tasks as Task[]) ?? [],
       (comments as TaskComment[]) ?? [],
+      (activity as TaskActivity[]) ?? [],
       profile.id,
       now,
       profile.full_name

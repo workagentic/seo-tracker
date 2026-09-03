@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
-import type { TaskComment } from '@/types'
+import { canCommentOnTask } from '@/lib/tasks/permissions'
+import type { Task, TaskComment } from '@/types'
 
 // Comments became editable/deletable 2 Sep 2026 (CLAUDE.md Section 14 Phase 3) -- a change
 // from the append-only design task_comments shipped with. Soft-delete (deleted_at set, body
@@ -23,6 +24,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // extend to rewriting someone else's comment.
   if (comment.author_id !== profile.id) {
     return NextResponse.json({ error: 'Only the comment author can edit it' }, { status: 403 })
+  }
+
+  // Even your own comment is locked once the task is Completed/On Hold, unless you're the
+  // Owner or admin/senior (CLAUDE.md Section 14 follow-up, 3 Sep 2026).
+  const { data: task } = (await admin.from('tasks').select('*').eq('id', comment.task_id).single()) as unknown as {
+    data: Task | null
+  }
+  if (task && !canCommentOnTask(task, profile)) {
+    return NextResponse.json({ error: 'Commenting is locked while this task is Completed or On Hold' }, { status: 403 })
   }
 
   const body = await request.json()
@@ -52,8 +62,21 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
   if (!comment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (comment.author_id !== profile.id && !['admin', 'senior'].includes(profile.role)) {
+  const isModerator = ['admin', 'senior'].includes(profile.role)
+  if (comment.author_id !== profile.id && !isModerator) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Deleting your own comment is also locked once the task is Completed/On Hold, unless
+  // you're the Owner or admin/senior -- admin/senior's moderation delete of ANY comment is
+  // unaffected (CLAUDE.md Section 14 follow-up, 3 Sep 2026).
+  if (!isModerator) {
+    const { data: task } = (await admin.from('tasks').select('*').eq('id', comment.task_id).single()) as unknown as {
+      data: Task | null
+    }
+    if (task && !canCommentOnTask(task, profile)) {
+      return NextResponse.json({ error: 'Commenting is locked while this task is Completed or On Hold' }, { status: 403 })
+    }
   }
 
   const { error } = await admin
