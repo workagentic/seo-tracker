@@ -355,9 +355,12 @@ export function TaskDetailPanel({
     setMentionQuery(null)
   }
 
+  // No cap -- this is a 9-person team, and the dropdown itself scrolls (see the mention <ul>
+  // below) rather than silently truncating the match list to 5 (bug reported by Abdullah 3 Sep
+  // 2026).
   const mentionSuggestions =
     mentionQuery !== null
-      ? owners.filter((o) => o.full_name.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+      ? owners.filter((o) => o.full_name.toLowerCase().startsWith(mentionQuery.toLowerCase()))
       : []
 
   async function postComment() {
@@ -448,7 +451,7 @@ export function TaskDetailPanel({
                       >
                         <option value="">—</option>
                         <option value={currentProfile.id}>Myself</option>
-                        {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                        {owners.filter((o) => o.id !== currentProfile.id).map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
                       </select>
                       <Input
                         type="date"
@@ -538,7 +541,7 @@ export function TaskDetailPanel({
                       }}
                     />
                     {mentionSuggestions.length > 0 && (
-                      <ul className="absolute z-10 w-full rounded-md border border-border bg-popover shadow-md">
+                      <ul className="absolute z-10 max-h-48 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
                         {mentionSuggestions.map((o) => (
                           <li key={o.id}>
                             <button
