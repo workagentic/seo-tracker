@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   ])
   const quarter = getCurrentQuarter(new Date())
   const targets = resolveTarget(allTargets, quarter)
-  const canSync = profile && ['admin', 'head'].includes(profile.role)
+  const canSync = profile && ['admin', 'senior'].includes(profile.role)
   const competitors = (competitorsData as Competitor[]) ?? []
 
   const trafficTrend: TrafficTrendPoint[] = allSnapshots.map((s) => ({

@@ -30,7 +30,7 @@ export default async function ScorecardPage({
   const snapshot = matches.length > 0 ? matches[matches.length - 1] : null
   const target = targets[selected]
 
-  const canExport = profile && ['admin', 'head'].includes(profile.role)
+  const canExport = profile && ['admin', 'senior'].includes(profile.role)
   const canSync = profile && canSyncScorecardActuals(profile)
 
   return (

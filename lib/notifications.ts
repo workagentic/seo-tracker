@@ -36,6 +36,12 @@ function daysFromNow(now: Date, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+// action_number is nullable since 3 Sep 2026 (removed from the New Task form) -- every
+// message here falls back to the title so a codeless task still reads sensibly.
+function taskLabel(task: Task): string {
+  return task.action_number ?? task.title
+}
+
 export function getNotificationsForUser(
   tasks: Task[],
   comments: TaskComment[],
@@ -67,8 +73,8 @@ export function getNotificationsForUser(
       notifications.push({
         type: 'mentioned',
         taskId: task.id,
-        actionNumber: task.action_number,
-        message: `You were mentioned on ${task.action_number}`,
+        actionNumber: taskLabel(task),
+        message: `You were mentioned on ${taskLabel(task)}`,
         key: `mentioned:${comment.id}`,
       })
     }
@@ -77,8 +83,8 @@ export function getNotificationsForUser(
     notifications.push({
       type: 'new-comment',
       taskId: task.id,
-      actionNumber: task.action_number,
-      message: `${task.action_number} has a new comment`,
+      actionNumber: taskLabel(task),
+      message: `${taskLabel(task)} has a new comment`,
       key: `new-comment:${comment.id}`,
     })
   }
@@ -96,27 +102,31 @@ export function getNotificationsForUser(
         notifications.push({
           type: 'overdue',
           taskId: task.id,
-          actionNumber: task.action_number,
-          message: `${task.action_number} is overdue (was due ${effectiveDue})`,
+          actionNumber: taskLabel(task),
+          message: `${taskLabel(task)} is overdue (was due ${effectiveDue})`,
           key: `overdue:${task.id}:${effectiveDue}`,
         })
       } else if (effectiveDue <= deadlineCutoff) {
         notifications.push({
           type: 'deadline-soon',
           taskId: task.id,
-          actionNumber: task.action_number,
-          message: `${task.action_number} is due ${effectiveDue}`,
+          actionNumber: taskLabel(task),
+          message: `${taskLabel(task)} is due ${effectiveDue}`,
           key: `deadline-soon:${task.id}:${effectiveDue}`,
         })
       }
     }
 
     if (new Date(task.created_at) >= recentCreatedCutoff) {
+      // Avoid "You're attached to <title>: <title>" when there's no action_number to lead with.
+      const message = task.action_number
+        ? `You're attached to ${task.action_number}: ${task.title}`
+        : `You're attached to ${task.title}`
       notifications.push({
         type: 'assigned',
         taskId: task.id,
-        actionNumber: task.action_number,
-        message: `You're attached to ${task.action_number}: ${task.title}`,
+        actionNumber: taskLabel(task),
+        message,
         key: `assigned:${task.id}:${task.created_at}`,
       })
     }
@@ -125,8 +135,8 @@ export function getNotificationsForUser(
       notifications.push({
         type: 'status-changed',
         taskId: task.id,
-        actionNumber: task.action_number,
-        message: `${task.action_number}'s status changed to "${task.status.replace('_', ' ')}"`,
+        actionNumber: taskLabel(task),
+        message: `${taskLabel(task)}'s status changed to "${task.status.replace('_', ' ')}"`,
         key: `status-changed:${task.id}:${task.updated_at}`,
       })
     }

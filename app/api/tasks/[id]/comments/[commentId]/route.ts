@@ -52,7 +52,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
   if (!comment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (comment.author_id !== profile.id && profile.role !== 'admin') {
+  if (comment.author_id !== profile.id && !['admin', 'senior'].includes(profile.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

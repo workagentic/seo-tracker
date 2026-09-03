@@ -5,9 +5,9 @@ import { computeTaskActivityEntries } from '@/lib/tasks/activity'
 import { getAllowedStatuses } from '@/lib/tasks/permissions'
 import type { Task, TaskStatus } from '@/types'
 
-// Bulk toolbar (Staff Docs/further_recs_mockup.html #4). Two actions: admin-only reassign
-// (sets assigned_to_id -- the hands-on-work field, not Owner, which stays restricted to the 3
-// eligible people and isn't a bulk-reassignable field), and a "set status to" that reuses the
+// Bulk toolbar (Staff Docs/further_recs_mockup.html #4). Two actions: admin/senior-only
+// reassign (sets assigned_to_id -- the hands-on-work field, not Owner, which stays restricted
+// to the 3 eligible people and isn't a bulk-reassignable field), and a "set status to" that reuses the
 // same per-row permission logic as the single-task PATCH route (app/api/tasks/[id]/route.ts)
 // -- rows the caller isn't allowed to touch are skipped, not errored, so one forbidden row
 // doesn't block the rest of the batch.
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const admin = createAdminSupabaseClient()
 
   if (body.action === 'reassign') {
-    if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!['admin', 'senior'].includes(profile.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (typeof body.assigned_to_id !== 'string') {
       return NextResponse.json({ error: 'assigned_to_id is required' }, { status: 400 })
     }

@@ -36,7 +36,11 @@ update tasks set assigned_to = (select id from profiles where full_name = 'Najma
 --    recreated (e.g. a deactivate + re-invite).
 alter table tasks rename column assigned_to to owner_id;
 
--- 5. Drop Co-Owner and the whole approval workflow.
+-- 5. Drop Co-Owner and the whole approval workflow. The old tasks_update_owner RLS policy
+--    (migration 0002) references co_assigned_to in its USING clause, so it must be dropped
+--    before that column can be -- Postgres refuses to drop a column a policy still depends on
+--    (error 2BP01). It's replaced in step 9 below with the new ownership-model policies.
+drop policy if exists "tasks_update_owner" on tasks;
 alter table tasks drop column co_assigned_to;
 alter table tasks drop column approver_id;
 
@@ -98,8 +102,8 @@ alter table tasks drop column category;
 --    when they are the current assignee -- the same kind of exception the old approver role
 --    had. (The task API routes use the service-role client and enforce this in the app layer
 --    too -- lib/tasks/permissions.ts -- this is defense-in-depth, same as tasks_delete_admin,
---    migration 0008.)
-drop policy if exists "tasks_update_owner" on tasks;
+--    migration 0008.) The old tasks_update_owner policy was already dropped in step 5, before
+--    co_assigned_to was dropped.
 create policy "tasks_update_owner" on tasks for update using (
   current_role_name() = 'owner' and (owner_id = auth.uid() or assigned_to_id = auth.uid())
 );

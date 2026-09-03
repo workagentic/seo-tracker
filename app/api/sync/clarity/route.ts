@@ -5,7 +5,7 @@ import { runClaritySync } from '@/lib/clarity/sync'
 
 export async function POST() {
   const profile = await getCurrentProfile()
-  if (!profile || !['admin', 'head'].includes(profile.role)) {
+  if (!profile || !['admin', 'senior'].includes(profile.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

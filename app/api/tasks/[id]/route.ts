@@ -17,10 +17,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const canEditAny = profile.role === 'admin' || profile.role === 'head'
-  // The task's current Owner or Assigned To (any profile, including leadership -- see
+  const canEditAny = profile.role === 'admin' || profile.role === 'senior'
+  // The task's current Owner or Assigned To (any profile, including reviewer -- see
   // lib/tasks/permissions.ts) can also change status/notes and hand the task on to someone
-  // else, distinct from the admin-only structural-fields gate below.
+  // else, distinct from the admin/senior-only structural-fields gate below.
   const canEditAssignment = canEditAny || canEditTaskStatus(task, profile)
   if (!canEditAssignment) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -48,10 +48,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     allowedFields.deadline = body.deadline
   }
 
-  // Structural fields (everything beyond status/notes/assigned_to_id/deadline) are admin-only,
-  // distinct from the owner/assignee editing permission above.
-  if (profile.role === 'admin') {
-    if (typeof body.action_number === 'string') allowedFields.action_number = body.action_number
+  // Structural fields (everything beyond status/notes/assigned_to_id/deadline) are
+  // admin/senior-only, distinct from the owner/assignee editing permission above.
+  if (profile.role === 'admin' || profile.role === 'senior') {
+    if (typeof body.action_number === 'string' || body.action_number === null) allowedFields.action_number = body.action_number
     if (typeof body.title === 'string') allowedFields.title = body.title
     if (typeof body.description === 'string' || body.description === null) allowedFields.description = body.description
     if (typeof body.position_responsible === 'string' || body.position_responsible === null) {
@@ -86,7 +86,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body.repeats !== undefined || body.next_due !== undefined || body.linked_finding_id !== undefined ||
     body.linked_keyword_id !== undefined
   ) {
-    return NextResponse.json({ error: 'Only admins can edit task details beyond status/notes/assignment' }, { status: 403 })
+    return NextResponse.json({ error: 'Only admin/senior can edit task details beyond status/notes/assignment' }, { status: 403 })
   }
 
   // Validate deadline <= due_date using whichever of the two is being set in this request,
@@ -136,7 +136,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await getCurrentProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !['admin', 'senior'].includes(profile.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const admin = createAdminSupabaseClient()

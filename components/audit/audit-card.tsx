@@ -22,7 +22,7 @@ export function AuditCard({
   linkedTasks = [],
 }: {
   report: AuditReport
-  linkedTasks?: { action_number: string; title: string; status: string }[]
+  linkedTasks?: { id: string; action_number: string | null; title: string; status: string }[]
 }) {
   return (
     <Card className={cn('border-l-4', report.severity ? SEVERITY_BORDER[report.severity] : 'border-l-border')}>
@@ -43,11 +43,11 @@ export function AuditCard({
           <div className="flex flex-wrap gap-1 pt-1">
             {linkedTasks.map((t) => (
               <span
-                key={t.action_number}
+                key={t.id}
                 title={t.title}
                 className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700"
               >
-                ↳ Linked task: {t.action_number} · {t.status.replace(/_/g, ' ')}
+                ↳ Linked task: {t.action_number ?? t.title} · {t.status.replace(/_/g, ' ')}
               </span>
             ))}
           </div>

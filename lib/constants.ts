@@ -100,18 +100,19 @@ export function getCurrentQuarter(date: Date): string {
   return `Q${quarterNumber}-${year}`
 }
 
-// Roles reassigned 28 Aug 2026 (CLAUDE.md Section 12.10): Syed Ali and Haroon promoted to
-// admin, Tabish moved from head to owner. Kept in sync here so a re-run of
-// scripts/seed-users.ts wouldn't seed the old roles.
+// Roles reassigned 3 Sep 2026 (CLAUDE.md Section 14, migration 0028_role_rename.sql): the
+// role vocabulary itself changed (admin/head/owner/leadership -> admin/senior/expert/
+// reviewer), not just who holds which. Kept in sync here so a re-run of
+// scripts/seed-users.ts wouldn't seed the old roles/values.
 export const TEAM_MEMBERS: { full_name: string; role: Role; job_title: string }[] = [
   { full_name: 'Abdullah Shekha', role: 'admin', job_title: 'Analyst / Supervisor' },
-  { full_name: 'Tabish Khalid', role: 'owner', job_title: 'Head of SEO & Content' },
-  { full_name: 'Talha Azeem', role: 'owner', job_title: 'Technical SEO / Content Strategist' },
-  { full_name: 'Usman Ali', role: 'owner', job_title: 'Web Developer' },
-  { full_name: 'Najma Furqan', role: 'owner', job_title: 'Content Strategy Execution / Editor' },
-  { full_name: 'Lavi Shamoon', role: 'owner', job_title: 'SME Writer' },
+  { full_name: 'Tabish Khalid', role: 'senior', job_title: 'Head of SEO & Content' },
+  { full_name: 'Talha Azeem', role: 'expert', job_title: 'Technical SEO / Content Strategist' },
+  { full_name: 'Usman Ali', role: 'expert', job_title: 'Web Developer' },
+  { full_name: 'Najma Furqan', role: 'senior', job_title: 'Content Strategy Execution / Editor' },
+  { full_name: 'Lavi Shamoon', role: 'expert', job_title: 'SME Writer' },
   { full_name: 'Syed Ali', role: 'admin', job_title: 'Director of Marketing' },
-  { full_name: 'Hameed Ishaq', role: 'owner', job_title: 'Designer' },
+  { full_name: 'Hameed Ishaq', role: 'expert', job_title: 'Designer' },
   { full_name: 'Haroon', role: 'admin', job_title: 'Leadership / CMO' },
-  { full_name: 'Adeela', role: 'leadership', job_title: 'CPA Reviewer' },
+  { full_name: 'Adeela', role: 'reviewer', job_title: 'CPA Reviewer' },
 ]

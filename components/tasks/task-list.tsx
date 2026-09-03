@@ -42,7 +42,7 @@ function csvCell(value: string): string {
 function exportCsv(tasks: Task[]) {
   const headers = ['Action', 'Title', 'Category', 'Owner', 'Assigned To', 'Due', 'Status']
   const rows = tasks.map((t) => [
-    t.action_number,
+    t.action_number ?? '',
     t.title,
     t.category?.name ?? '',
     t.owner_profile?.full_name ?? '',
@@ -80,10 +80,18 @@ export function TaskList({
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
   const redFlagCutoff = new Date(now.getTime() + RED_FLAG_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const isAdmin = currentProfile.role === 'admin'
-  const canBulkEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'
+  // admin and senior both get bulk reassign -- senior is near-admin for task management
+  // (CLAUDE.md Section 14), not just an admin-tab visibility grant.
+  const canManageAllTasks = currentProfile.role === 'admin' || currentProfile.role === 'senior'
+  // Every current role can bulk-set-status (the per-row permission check server-side still
+  // scopes what each caller can actually change -- this just controls whether the toolbar
+  // control is shown at all).
+  const canBulkEdit = true
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortState | null>(null)
+  // Defaults to the same due-date-ascending order Task No is computed from, so the row order
+  // and the Task No labels agree by construction (Hameed's feedback: the old action_number
+  // text sort put "DR10" before "DR2"). compareValues sorts nulls last regardless of direction.
+  const [sort, setSort] = useState<SortState | null>({ key: 'due_date', dir: 'asc' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkAssignTo, setBulkAssignTo] = useState('')
   const [bulkStatus, setBulkStatus] = useState('')
@@ -201,7 +209,7 @@ export function TaskList({
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
           <span className="font-medium text-foreground">{selected.size} selected</span>
-          {isAdmin && (
+          {canManageAllTasks && (
             <>
               <select
                 value={bulkAssignTo}
@@ -262,7 +270,7 @@ export function TaskList({
                   }
                 />
               </th>
-              <th className="px-4 py-2">Task No</th>
+              <SortableTh label="Task No" sortKey="due_date" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Title" sortKey="title" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Owner" sortKey="owner" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Assigned To" sortKey="assigned_to" currentSort={sort} onSort={toggleSort} />
@@ -276,7 +284,7 @@ export function TaskList({
               const notDone = task.status !== 'completed'
               const isOverdue = !!effectiveDue && effectiveDue < today && notDone
               const isRedFlagged = !isOverdue && !!effectiveDue && effectiveDue <= redFlagCutoff && notDone
-              const canEdit = currentProfile.role === 'admin' || currentProfile.role === 'head' || canEditTaskStatus(task, currentProfile)
+              const canEdit = currentProfile.role === 'admin' || currentProfile.role === 'senior' || canEditTaskStatus(task, currentProfile)
               const allowedStatuses = getAllowedStatuses(task, currentProfile)
 
               return (
@@ -291,7 +299,9 @@ export function TaskList({
                   </td>
                   <td className="px-4 py-2 font-mono font-medium text-foreground">{taskNoById.get(task.id)}</td>
                   <td className="px-4 py-2 text-foreground">
-                    <span className="mr-2 font-mono text-xs text-muted-foreground">{task.action_number}</span>
+                    {task.action_number && (
+                      <span className="mr-2 font-mono text-xs text-muted-foreground">{task.action_number}</span>
+                    )}
                     {task.title}
                     {task.category && (
                       <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">

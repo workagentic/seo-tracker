@@ -22,10 +22,12 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const isLoginRoute = request.nextUrl.pathname.startsWith('/login')
+  const pathname = request.nextUrl.pathname
+  const isLoginRoute = pathname.startsWith('/login')
+  const isApiRoute = pathname.startsWith('/api/')
 
   if (!user && !isLoginRoute) {
-    if (request.nextUrl.pathname.startsWith('/api/')) {
+    if (isApiRoute) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const url = request.nextUrl.clone()
@@ -39,28 +41,41 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/admin')) {
+  // Role-based page gating (CLAUDE.md Section 14, migration 0028_role_rename.sql). API routes
+  // are excluded -- each one does its own getCurrentProfile()-based check, and the Tasks page
+  // itself calls several /api/tasks/* endpoints that a reviewer-role redirect below would
+  // otherwise incorrectly block.
+  if (user && !isApiRoute) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
-    if (profile?.role !== 'admin') {
+    const role = profile?.role
+
+    if (pathname.startsWith('/admin')) {
+      // /admin/users stays admin-only even for senior, who gets every other /admin/* sub-page.
+      const isUsersPage = pathname.startsWith('/admin/users')
+      const allowed = isUsersPage ? role === 'admin' : role === 'admin' || role === 'senior'
+      if (!allowed) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    if (pathname.startsWith('/leads') && role !== 'admin') {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
-  }
 
-  if (user && request.nextUrl.pathname.startsWith('/leads')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    if (profile?.role !== 'admin') {
+    // Reviewer (Adeela) only ever sees the Tasks page -- a hard restriction, not just a
+    // sidebar hide, since a reviewer typing /dashboard (or any other URL) directly would
+    // otherwise still load it.
+    if (role === 'reviewer' && !pathname.startsWith('/tasks')) {
       const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
+      url.pathname = '/tasks'
       return NextResponse.redirect(url)
     }
   }

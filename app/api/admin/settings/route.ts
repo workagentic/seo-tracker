@@ -4,7 +4,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
   const profile = await getCurrentProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !['admin', 'senior'].includes(profile.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

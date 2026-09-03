@@ -10,7 +10,7 @@ export default async function KeywordsPage() {
   const supabase = await createServerSupabaseClient()
   const { data } = await supabase.from('tracked_keywords').select('*').eq('is_active', true).order('keyword')
 
-  const canSync = profile && ['admin', 'head'].includes(profile.role)
+  const canSync = profile && ['admin', 'senior'].includes(profile.role)
 
   return (
     <div>

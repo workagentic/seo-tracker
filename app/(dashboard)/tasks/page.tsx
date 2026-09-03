@@ -16,7 +16,9 @@ export default async function TasksPage({
 
   const params = await searchParams
   const supabase = await createServerSupabaseClient()
-  const isAdmin = profile.role === 'admin'
+  // admin and senior both get the unscoped "All owners" view (CLAUDE.md Section 14) -- senior
+  // is the near-admin tier for task management, not just an admin-tab visibility grant.
+  const canManageAllTasks = profile.role === 'admin' || profile.role === 'senior'
 
   let query = supabase
     .from('tasks')
@@ -25,10 +27,9 @@ export default async function TasksPage({
     )
     .order('action_number', { ascending: true })
 
-  // Non-admins always see only their own tasks (Owner or Assigned To) -- no "All tasks"
-  // toggle, and no way to view another owner's tasks. Only admins get the "All owners" view
-  // and the by-owner filter below (CLAUDE.md Section 14 Phase 3).
-  if (isAdmin) {
+  // Everyone else always sees only their own tasks (Owner or Assigned To) -- no "All tasks"
+  // toggle, and no way to view another owner's tasks (CLAUDE.md Section 14 Phase 3).
+  if (canManageAllTasks) {
     if (params.owner) query = query.eq('owner_id', params.owner)
   } else {
     query = query.or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
@@ -51,11 +52,11 @@ export default async function TasksPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Task Tracker</h1>
-        {profile.role === 'admin' && (
+        {canManageAllTasks && (
           <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} />
         )}
       </div>
-      <TaskFilters owners={owners ?? []} categories={categories ?? []} isAdmin={isAdmin} />
+      <TaskFilters owners={owners ?? []} categories={categories ?? []} isAdmin={canManageAllTasks} />
       <TaskList
         tasks={(tasks as Task[]) ?? []}
         currentProfile={profile}

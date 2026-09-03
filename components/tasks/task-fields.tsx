@@ -9,7 +9,6 @@ import type { Task } from '@/types'
 export const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'All']
 
 export interface TaskFormValues {
-  action_number: string
   title: string
   description: string
   owner_id: string
@@ -27,7 +26,6 @@ export interface TaskFormValues {
 
 export function emptyTaskForm(task?: Task): TaskFormValues {
   return {
-    action_number: task?.action_number ?? '',
     title: task?.title ?? '',
     description: task?.description ?? '',
     owner_id: task?.owner_id ?? '',
@@ -44,9 +42,12 @@ export function emptyTaskForm(task?: Task): TaskFormValues {
   }
 }
 
-// Structural task fields, admin-only to edit (CLAUDE.md Section 14 Phase 2/3) -- shared
-// between the New Task dialog (creation) and the task detail panel's edit section (editing
-// an existing task moved out of a separate modal and into the panel in Phase 3).
+// Structural task fields, admin/senior-only to edit (CLAUDE.md Section 14) -- shared between
+// the New Task dialog (creation) and the task detail panel's edit section (editing an
+// existing task moved out of a separate modal and into the panel in Phase 3). No Action
+// Number field -- removed 3 Sep 2026, the sprint-sheet-style codes don't apply once tasks are
+// created manually; tasks.action_number stays in the schema (nullable) for older data/display
+// only, admin/senior can still set one via a direct API call if ever needed.
 export function TaskFields({
   form,
   set,
@@ -69,23 +70,17 @@ export function TaskFields({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor={id('action_number')}>Action number</Label>
-          <Input id={id('action_number')} value={form.action_number} onChange={(e) => set('action_number', e.target.value)} placeholder="A35" />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('quarter')}>Quarter</Label>
-          <select
-            id={id('quarter')}
-            value={form.quarter}
-            onChange={(e) => set('quarter', e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-          >
-            <option value="">—</option>
-            {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
-          </select>
-        </div>
+      <div className="space-y-1">
+        <Label htmlFor={id('quarter')}>Quarter</Label>
+        <select
+          id={id('quarter')}
+          value={form.quarter}
+          onChange={(e) => set('quarter', e.target.value)}
+          className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+        >
+          <option value="">—</option>
+          {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
+        </select>
       </div>
       <div className="space-y-1">
         <Label htmlFor={id('title')}>Title</Label>

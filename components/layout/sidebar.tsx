@@ -5,16 +5,22 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
 
+// Reviewer (Adeela) is restricted to only Tasks (CLAUDE.md Section 14, migration
+// 0028_role_rename.sql) -- every other item is explicitly admin/senior/expert so it's hidden
+// for reviewer, rather than Tasks alone needing a reviewer-specific carve-out. middleware.ts
+// enforces this at the route level too; this list is just what the sidebar shows.
+const STANDARD_ROLES: Profile['role'][] = ['admin', 'senior', 'expert']
+
 const NAV_ITEMS: { href: string; label: string; roles?: Profile['role'][] }[] = [
-  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Dashboard', roles: STANDARD_ROLES },
   { href: '/tasks', label: 'Tasks' },
-  { href: '/scorecard', label: 'Scorecard' },
-  { href: '/weekly-report', label: 'Weekly Report' },
-  { href: '/competitors', label: 'Competitors' },
-  { href: '/keywords', label: 'Keywords' },
-  { href: '/audit', label: 'Audit Reports' },
+  { href: '/scorecard', label: 'Scorecard', roles: STANDARD_ROLES },
+  { href: '/weekly-report', label: 'Weekly Report', roles: STANDARD_ROLES },
+  { href: '/competitors', label: 'Competitors', roles: STANDARD_ROLES },
+  { href: '/keywords', label: 'Keywords', roles: STANDARD_ROLES },
+  { href: '/audit', label: 'Audit Reports', roles: STANDARD_ROLES },
   { href: '/leads', label: 'Leads', roles: ['admin'] },
-  { href: '/admin', label: 'Admin', roles: ['admin'] },
+  { href: '/admin', label: 'Admin', roles: ['admin', 'senior'] },
 ]
 
 export function Sidebar({ role }: { role: Profile['role'] }) {

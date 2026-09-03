@@ -36,10 +36,10 @@ export default async function AuditPage({
         )
     : { data: [] }
 
-  const tasksByFinding = new Map<string, { action_number: string; title: string; status: string }[]>()
-  for (const t of (linkedTasks ?? []) as { action_number: string; title: string; status: string; linked_finding_id: string }[]) {
+  const tasksByFinding = new Map<string, { id: string; action_number: string | null; title: string; status: string }[]>()
+  for (const t of (linkedTasks ?? []) as { id: string; action_number: string | null; title: string; status: string; linked_finding_id: string }[]) {
     const list = tasksByFinding.get(t.linked_finding_id) ?? []
-    list.push({ action_number: t.action_number, title: t.title, status: t.status })
+    list.push({ id: t.id, action_number: t.action_number, title: t.title, status: t.status })
     tasksByFinding.set(t.linked_finding_id, list)
   }
 
@@ -47,7 +47,7 @@ export default async function AuditPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Audit Reports</h1>
-        {profile && ['admin', 'head'].includes(profile.role) && <NewFindingDialog />}
+        {profile && ['admin', 'senior'].includes(profile.role) && <NewFindingDialog />}
       </div>
       <AuditFilters />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -49,7 +49,7 @@ function CommentRow({
   const [draft, setDraft] = useState(comment.body)
   const [busy, setBusy] = useState(false)
   const isAuthor = comment.author_id === currentProfile.id
-  const canDelete = isAuthor || currentProfile.role === 'admin'
+  const canDelete = isAuthor || ['admin', 'senior'].includes(currentProfile.role)
 
   async function save() {
     if (!draft.trim()) return
@@ -143,8 +143,10 @@ export function TaskDetailPanel({
   onClose: () => void
 }) {
   const router = useRouter()
-  const isAdmin = currentProfile.role === 'admin'
-  // canEditTaskStatus already covers admin/head internally -- no need to repeat that check.
+  // Senior gets the same full structural-edit + delete rights as admin here (CLAUDE.md
+  // Section 14) -- near-admin for task management, not just admin-tab visibility.
+  const canEditStructural = currentProfile.role === 'admin' || currentProfile.role === 'senior'
+  // canEditTaskStatus already covers admin/senior internally -- no need to repeat that check.
   const canEditAssignment = !!task && canEditTaskStatus(task, currentProfile)
 
   const [form, setForm] = useState(emptyTaskForm(task ?? undefined))
@@ -223,7 +225,6 @@ export function TaskDetailPanel({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action_number: form.action_number,
           title: form.title,
           description: form.description || null,
           owner_id: form.owner_id || null,
@@ -292,7 +293,7 @@ export function TaskDetailPanel({
 
   async function handleDelete() {
     if (!task) return
-    if (!confirm(`Delete task ${task.action_number}? This cannot be undone.`)) return
+    if (!confirm(`Delete task "${task.title}"? This cannot be undone.`)) return
     setSaving(true)
     try {
       const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
@@ -344,7 +345,9 @@ export function TaskDetailPanel({
     }
   }
 
-  const canComment = currentProfile.role === 'admin' || currentProfile.role === 'head' || currentProfile.role === 'owner'
+  // Every current role can comment (reviewer included -- within Tasks, reviewer's permissions
+  // match expert's, CLAUDE.md Section 14).
+  const canComment = true
   const allowedStatuses = task ? getAllowedStatuses(task, currentProfile) : []
   const canEditNotes = canEditAssignment
 
@@ -354,7 +357,7 @@ export function TaskDetailPanel({
         {task && (
           <>
             <SheetHeader className="border-b border-border">
-              <SheetTitle>{task.action_number} — {task.title}</SheetTitle>
+              <SheetTitle>{task.action_number ? `${task.action_number} — ${task.title}` : task.title}</SheetTitle>
             </SheetHeader>
             <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-4">
               <section className="space-y-3">
@@ -369,7 +372,7 @@ export function TaskDetailPanel({
                   />
                 </div>
 
-                {!isAdmin && canEditAssignment && (
+                {!canEditStructural && canEditAssignment && (
                   <div className="rounded-md border border-border bg-muted/30 p-3">
                     <h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Reassign</h4>
                     <div className="grid grid-cols-2 gap-2">
@@ -398,12 +401,12 @@ export function TaskDetailPanel({
 
               <section className="space-y-3 border-t border-border pt-4">
                 <h3 className="text-sm font-semibold text-foreground">Details</h3>
-                {isAdmin ? (
+                {canEditStructural ? (
                   <>
                     <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} idPrefix="panel_" />
                     {error && <p className="text-sm text-destructive">{error}</p>}
                     <div className="flex gap-2">
-                      <Button size="sm" disabled={saving || !form.action_number || !form.title} onClick={saveDetails}>
+                      <Button size="sm" disabled={saving || !form.title} onClick={saveDetails}>
                         {saving ? 'Saving…' : 'Save'}
                       </Button>
                       <Button size="sm" variant="destructive" disabled={saving} onClick={handleDelete}>

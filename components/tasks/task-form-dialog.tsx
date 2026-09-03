@@ -38,7 +38,6 @@ export function TaskFormDialog({
     setSubmitting(true)
     try {
       const payload = {
-        action_number: form.action_number,
         title: form.title,
         description: form.description || null,
         owner_id: form.owner_id || null,
@@ -79,7 +78,7 @@ export function TaskFormDialog({
         <TaskFields form={form} set={set} owners={owners} categories={categories} findings={findings} keywords={keywords} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button disabled={submitting || !form.action_number || !form.title} onClick={handleSubmit}>
+          <Button disabled={submitting || !form.title} onClick={handleSubmit}>
             {submitting ? 'Saving…' : 'Create'}
           </Button>
         </DialogFooter>

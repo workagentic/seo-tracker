@@ -13,7 +13,7 @@ export default async function CompetitorsPage() {
     supabase.from('competitors').select('*').eq('is_active', true).order('domain_rating', { ascending: false, nullsFirst: false }),
     getLatestSnapshot(supabase),
   ])
-  const canSync = profile && ['admin', 'head'].includes(profile.role)
+  const canSync = profile && ['admin', 'senior'].includes(profile.role)
 
   return (
     <div>

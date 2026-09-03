@@ -23,9 +23,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (profile.role !== 'admin' && profile.role !== 'head' && profile.role !== 'owner') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // Every current role can comment (reviewer included, since within Tasks reviewer's
+  // permissions match expert's -- CLAUDE.md Section 14) -- no further gate beyond
+  // authentication.
 
   const body = await request.json()
   if (typeof body.body !== 'string' || !body.body.trim()) {

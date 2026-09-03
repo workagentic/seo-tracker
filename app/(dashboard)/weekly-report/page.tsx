@@ -84,7 +84,7 @@ export default async function WeeklyReportPage() {
                 <ul className="space-y-1 text-sm">
                   {summary.tasksDueSoon.map((t) => (
                     <li key={t.id} className="flex items-center justify-between">
-                      <span className="text-foreground">{t.action_number} — {t.title}</span>
+                      <span className="text-foreground">{t.action_number ? `${t.action_number} — ${t.title}` : t.title}</span>
                       <span className="ml-2 shrink-0 text-muted-foreground">{t.owner ?? '—'} · {t.due_date}</span>
                     </li>
                   ))}
@@ -100,7 +100,7 @@ export default async function WeeklyReportPage() {
                 <ul className="space-y-1 text-sm">
                   {summary.tasksOverdue.map((t) => (
                     <li key={t.id} className="flex items-center justify-between">
-                      <span className="text-foreground">{t.action_number} — {t.title}</span>
+                      <span className="text-foreground">{t.action_number ? `${t.action_number} — ${t.title}` : t.title}</span>
                       <span className="ml-2 shrink-0 font-medium text-red-600">{t.owner ?? '—'} · {t.due_date}</span>
                     </li>
                   ))}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { Profile, Role } from '@/types'
 
-const ROLES: Role[] = ['admin', 'head', 'owner', 'leadership']
+const ROLES: Role[] = ['admin', 'senior', 'expert', 'reviewer']
 
 export function UserRow({ profile, currentUserId }: { profile: Profile; currentUserId: string }) {
   const [editing, setEditing] = useState(false)

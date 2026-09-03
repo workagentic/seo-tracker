@@ -1,13 +1,13 @@
 import { calculateRAG } from '@/lib/rag'
 import type { MetricKey, MetricSnapshot, Profile, QuarterTarget, RAGStatus } from '@/types'
 
-// Named exception to the role system (CLAUDE.md Section 14 Phase 5): the Scorecard's new
-// Actual/Variance auto-sync is restricted to admins plus these 2 people specifically, by
-// name -- not role-based, since Najma/Tabish are role='owner', not 'admin'.
-const SCORECARD_SYNC_NAMES = ['Najma Furqan', 'Tabish Khalid']
-
+// Originally a named exception (admin plus Najma Furqan/Tabish Khalid specifically, by name,
+// since they were role='owner' at the time -- Phase 5). Simplified 3 Sep 2026 once the role
+// rename (CLAUDE.md Section 14) made Najma/Tabish role='senior' -- senior already gets every
+// other sync button in the app, so this is just the standard admin/senior gate now, matching
+// that pattern instead of special-casing two names.
 export function canSyncScorecardActuals(profile: Pick<Profile, 'role' | 'full_name'>): boolean {
-  return profile.role === 'admin' || SCORECARD_SYNC_NAMES.includes(profile.full_name)
+  return profile.role === 'admin' || profile.role === 'senior'
 }
 
 export const SCORECARD_ROWS: { key: MetricKey; label: string }[] = [

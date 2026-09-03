@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { Role } from '@/types'
 
-const ROLES: Role[] = ['admin', 'head', 'owner', 'leadership']
+const ROLES: Role[] = ['admin', 'senior', 'expert', 'reviewer']
 
 export function CreateUserForm() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('owner')
+  const [role, setRole] = useState<Role>('expert')
   const [jobTitle, setJobTitle] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)

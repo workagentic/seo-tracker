@@ -1,4 +1,10 @@
-export type Role = 'admin' | 'head' | 'owner' | 'leadership'
+// Renamed 3 Sep 2026 (CLAUDE.md Section 14) from 'admin'/'head'/'owner'/'leadership' to match
+// the business's own vocabulary. 'head' is retired (was vacant). The old 'owner' role split
+// into 'senior' (near-admin: full read/write on /admin/* except Users, can create tasks, gets
+// every sync button) and 'expert' (today's 'owner' behavior, unchanged). 'leadership' became
+// 'reviewer' (Adeela only) -- now restricted to only the Tasks page, but with the same
+// in-Tasks permissions 'expert' has.
+export type Role = 'admin' | 'senior' | 'expert' | 'reviewer'
 
 export interface Profile {
   id: string
@@ -22,7 +28,9 @@ export type QuarterLabel = 'Q1' | 'Q2' | 'Q3' | 'Q4'
 
 export interface Task {
   id: string
-  action_number: string
+  // Nullable since 3 Sep 2026 -- removed from the New Task form (the sprint-sheet-style codes
+  // don't apply to manually-created tasks); still admin/senior-editable and shown when present.
+  action_number: string | null
   title: string
   description: string | null
   position_responsible: string | null
@@ -133,7 +141,7 @@ export interface WeeklyReportKpi {
 
 export interface WeeklyReportTask {
   id: string
-  action_number: string
+  action_number: string | null
   title: string
   due_date: string | null
   owner: string | null

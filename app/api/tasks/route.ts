@@ -5,13 +5,13 @@ import { ELIGIBLE_OWNER_NAMES } from '@/lib/tasks/constants'
 
 export async function POST(request: Request) {
   const profile = await getCurrentProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !['admin', 'senior'].includes(profile.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = await request.json()
-  if (!body.action_number || !body.title) {
-    return NextResponse.json({ error: 'action_number and title are required' }, { status: 400 })
+  if (!body.title) {
+    return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
 
   const admin = createAdminSupabaseClient()
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const { data, error } = await admin
     .from('tasks')
     .insert({
-      action_number: body.action_number,
+      action_number: body.action_number || null,
       title: body.title,
       description: body.description || null,
       position_responsible: body.position_responsible || null,
