@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const supabase = await createServerSupabaseClient()
   const { data, error } = await supabase
     .from('task_comments')
-    .select('*, author_profile:author_id(id, full_name)')
+    .select('*, author_profile:author_id(id, full_name), images:task_comment_images(id, comment_id, image_url, created_at)')
     .eq('task_id', id)
     .order('created_at', { ascending: true })
 
@@ -39,15 +39,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const body = await request.json()
-  if (typeof body.body !== 'string' || !body.body.trim()) {
-    return NextResponse.json({ error: 'Comment body is required' }, { status: 400 })
+  const text = typeof body.body === 'string' ? body.body.trim() : ''
+  // Pasted screenshots (CLAUDE.md Section 14 follow-up, 3 Sep 2026) -- already-uploaded URLs
+  // from POST /api/uploads/task-image, attached at post time. A comment needs text OR at
+  // least one image, not necessarily both (a bare screenshot with no caption is a valid post).
+  const imageUrls: string[] = Array.isArray(body.image_urls)
+    ? body.image_urls.filter((u: unknown): u is string => typeof u === 'string' && u.trim().length > 0)
+    : []
+  if (!text && imageUrls.length === 0) {
+    return NextResponse.json({ error: 'Comment body or at least one image is required' }, { status: 400 })
   }
-  const { data, error } = await admin
+
+  const { data: comment, error } = await admin
     .from('task_comments')
-    .insert({ task_id: id, author_id: profile.id, body: body.body.trim() } as never)
+    .insert({ task_id: id, author_id: profile.id, body: text } as never)
     .select('*, author_profile:author_id(id, full_name)')
     .single()
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ comment: data })
+
+  const commentId = (comment as { id: string }).id
+  if (imageUrls.length > 0) {
+    const { error: imagesError } = await admin
+      .from('task_comment_images')
+      .insert(imageUrls.map((image_url) => ({ comment_id: commentId, image_url })) as never)
+    if (imagesError) return NextResponse.json({ error: imagesError.message }, { status: 500 })
+  }
+
+  const { data: images } = await admin
+    .from('task_comment_images')
+    .select('id, comment_id, image_url, created_at')
+    .eq('comment_id', commentId)
+
+  return NextResponse.json({ comment: { ...(comment as Record<string, unknown>), images: images ?? [] } })
 }

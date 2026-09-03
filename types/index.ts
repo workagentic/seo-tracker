@@ -82,6 +82,13 @@ export interface TaskActivity {
   changed_by_profile?: Pick<Profile, 'id' | 'full_name'> | null
 }
 
+export interface TaskCommentImage {
+  id: string
+  comment_id: string
+  image_url: string
+  created_at: string
+}
+
 export interface TaskComment {
   id: string
   task_id: string
@@ -91,6 +98,9 @@ export interface TaskComment {
   edited_at: string | null
   deleted_at: string | null
   author_profile?: Pick<Profile, 'id' | 'full_name'> | null
+  // Pasted screenshots attached at post time (CLAUDE.md Section 14 follow-up, 3 Sep 2026) --
+  // fixed once posted, not editable; delete and repost to change them.
+  images?: TaskCommentImage[]
 }
 
 export type MetricKey =

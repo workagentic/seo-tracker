@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { X } from 'lucide-react'
 import { TaskFields, emptyTaskForm } from './task-fields'
 import { TaskStatusSelect } from './task-status-select'
+import { NotesEditor } from './notes-editor'
 import { canEditTaskStatus, canCommentOnTask, getAllowedStatuses } from '@/lib/tasks/permissions'
+import { uploadTaskImage, imageFilesFromClipboard } from '@/lib/tasks/upload-image'
 import type { Profile, Task, TaskActivity, TaskComment } from '@/types'
 
 const FIELD_LABELS: Record<string, string> = {
@@ -109,7 +111,17 @@ function CommentRow({
         </div>
       ) : (
         <>
-          <div className="whitespace-pre-wrap text-foreground">{comment.body}</div>
+          {comment.body && <div className="whitespace-pre-wrap text-foreground">{comment.body}</div>}
+          {comment.images && comment.images.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {comment.images.map((img) => (
+                <a key={img.id} href={img.image_url} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- pasted screenshots served from Supabase Storage, not a build-time-known domain */}
+                  <img src={img.image_url} alt="Attached screenshot" className="h-20 w-20 rounded border border-border object-cover" />
+                </a>
+              ))}
+            </div>
+          )}
           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
             <span>
               {comment.author_profile?.full_name ?? 'Someone'} · {new Date(comment.created_at).toLocaleString()}
@@ -176,6 +188,10 @@ export function TaskDetailPanel({
   const [draft, setDraft] = useState('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [posting, setPosting] = useState(false)
+  // Screenshots pasted into the comment box, already uploaded, attached when the comment is
+  // posted (CLAUDE.md Section 14 follow-up, 3 Sep 2026) -- fixed once posted, see CommentRow.
+  const [pendingImages, setPendingImages] = useState<string[]>([])
+  const [uploadingCount, setUploadingCount] = useState(0)
 
   const [activity, setActivity] = useState<TaskActivity[]>([])
   const [loadingActivity, setLoadingActivity] = useState(false)
@@ -188,6 +204,7 @@ export function TaskDetailPanel({
     setNotes(task.notes ?? '')
     setError(null)
     setDraft('')
+    setPendingImages([])
     loadComments(task.id)
     loadActivity(task.id)
     // Deliberately keyed on task?.id, not the task object itself -- `task` is a fresh object
@@ -344,16 +361,17 @@ export function TaskDetailPanel({
       : []
 
   async function postComment() {
-    if (!task || !draft.trim()) return
+    if (!task || (!draft.trim() && pendingImages.length === 0)) return
     setPosting(true)
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: draft.trim() }),
+        body: JSON.stringify({ body: draft.trim(), image_urls: pendingImages }),
       })
       if (res.ok) {
         setDraft('')
+        setPendingImages([])
         setMentionQuery(null)
         await loadComments(task.id)
         router.refresh()
@@ -361,6 +379,27 @@ export function TaskDetailPanel({
     } finally {
       setPosting(false)
     }
+  }
+
+  // Pasting an image into the comment box (even a plain <input>) fires a paste event carrying
+  // the image as a file, even though no text gets inserted -- same mechanism GitHub/Slack use.
+  async function handleCommentPaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const files = imageFilesFromClipboard(e.clipboardData)
+    if (files.length === 0) return
+    e.preventDefault()
+    setUploadingCount((n) => n + files.length)
+    try {
+      const urls = await Promise.all(files.map((file) => uploadTaskImage(file)))
+      setPendingImages((prev) => [...prev, ...urls])
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to upload image')
+    } finally {
+      setUploadingCount((n) => n - files.length)
+    }
+  }
+
+  function removePendingImage(url: string) {
+    setPendingImages((prev) => prev.filter((u) => u !== url))
   }
 
   // Any role can comment normally (reviewer included -- within Tasks, reviewer's permissions
@@ -463,7 +502,7 @@ export function TaskDetailPanel({
 
               <section className="space-y-2 border-t border-border pt-4">
                 <h3 className="text-sm font-semibold text-foreground">Notes</h3>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!canEditNotes} />
+                <NotesEditor value={notes} onChange={setNotes} editable={canEditNotes} />
                 {canEditNotes && (
                   <Button size="sm" disabled={saving} onClick={saveNotes}>Save notes</Button>
                 )}
@@ -492,7 +531,8 @@ export function TaskDetailPanel({
                     <Input
                       value={draft}
                       onChange={(e) => handleDraftChange(e.target.value)}
-                      placeholder="Add a comment… (@ to mention someone)"
+                      onPaste={handleCommentPaste}
+                      placeholder="Add a comment… (@ to mention someone, or paste a screenshot)"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !posting && mentionSuggestions.length === 0) postComment()
                       }}
@@ -512,7 +552,35 @@ export function TaskDetailPanel({
                         ))}
                       </ul>
                     )}
-                    <Button size="sm" disabled={posting || !draft.trim()} onClick={postComment} className="self-end">
+                    {pendingImages.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {pendingImages.map((url) => (
+                          <div key={url} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- pasted screenshots served from Supabase Storage, not a build-time-known domain */}
+                            <img src={url} alt="Pasted screenshot" className="h-16 w-16 rounded border border-border object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removePendingImage(url)}
+                              aria-label="Remove image"
+                              className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {uploadingCount > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}…
+                      </p>
+                    )}
+                    <Button
+                      size="sm"
+                      disabled={posting || uploadingCount > 0 || (!draft.trim() && pendingImages.length === 0)}
+                      onClick={postComment}
+                      className="self-end"
+                    >
                       {posting ? 'Posting…' : 'Post'}
                     </Button>
                   </div>
@@ -536,7 +604,9 @@ export function TaskDetailPanel({
                         <div className="font-mono text-xs text-muted-foreground">
                           {entry.field === 'owner_id' || entry.field === 'assigned_to_id'
                             ? `${nameOf(owners, entry.old_value)} → ${nameOf(owners, entry.new_value)}`
-                            : `${entry.old_value ?? '—'} → ${entry.new_value ?? '—'}`}
+                            : entry.field === 'notes'
+                              ? '(content updated)'
+                              : `${entry.old_value ?? '—'} → ${entry.new_value ?? '—'}`}
                         </div>
                         <div className="text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
                       </li>

@@ -4,6 +4,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { computeTaskActivityEntries } from '@/lib/tasks/activity'
 import { canEditTaskStatus, getAllowedStatuses } from '@/lib/tasks/permissions'
 import { ELIGIBLE_OWNER_NAMES } from '@/lib/tasks/constants'
+import { sanitizeNotesHtml } from '@/lib/tasks/notes-sanitize'
 import type { Task, TaskStatus } from '@/types'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     allowedFields.status = nextStatus
   }
-  if (typeof body.notes === 'string') allowedFields.notes = body.notes
+  // Sanitized server-side regardless of what the Notes editor UI sends -- guards against a
+  // crafted request bypassing it entirely (CLAUDE.md Section 14 follow-up, 3 Sep 2026).
+  if (typeof body.notes === 'string') allowedFields.notes = sanitizeNotesHtml(body.notes)
 
   // Reassignment: whoever currently holds the task (owner or assignee) can hand it to someone
   // else with a new deadline, same as admin/head -- this is the core handoff workflow
