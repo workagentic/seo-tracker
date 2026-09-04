@@ -3,10 +3,11 @@
 import { useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { ELIGIBLE_OWNER_NAMES } from '@/lib/tasks/constants'
 import type { Profile } from '@/types'
 
 const STORAGE_KEY = 'ea-seo-tracker:task-filters'
-const FILTER_KEYS = ['quarter', 'status', 'category', 'owner', 'overdue'] as const
+const FILTER_KEYS = ['quarter', 'status', 'category', 'owner', 'assignedTo', 'overdue'] as const
 
 // Filters persist per browser (CLAUDE.md Section 14 Phase 3) until "Clear Filters" is
 // pressed -- a per-viewer convenience, not synced across devices. localStorage access is
@@ -61,6 +62,9 @@ export function TaskFilters({
   }
 
   const hasFilters = FILTER_KEYS.some((k) => !!params.get(k))
+  // Owner is restricted to the 3 people eligible to hold that field (lib/tasks/constants.ts) --
+  // filtering by any other owner would always return zero tasks.
+  const eligibleOwners = owners.filter((o) => (ELIGIBLE_OWNER_NAMES as readonly string[]).includes(o.full_name))
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -79,6 +83,12 @@ export function TaskFilters({
       {isAdmin && (
         <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('owner') ?? ''} onChange={(e) => setParam('owner', e.target.value)}>
           <option value="">All owners</option>
+          {eligibleOwners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+        </select>
+      )}
+      {isAdmin && (
+        <select className="rounded border border-input bg-card px-2 py-1 text-sm text-foreground" defaultValue={params.get('assignedTo') ?? ''} onChange={(e) => setParam('assignedTo', e.target.value)}>
+          <option value="">All assigned to</option>
           {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
         </select>
       )}

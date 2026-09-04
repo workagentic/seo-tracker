@@ -31,6 +31,7 @@ export default async function TasksPage({
   // toggle, and no way to view another owner's tasks (CLAUDE.md Section 14 Phase 3).
   if (canManageAllTasks) {
     if (params.owner) query = query.eq('owner_id', params.owner)
+    if (params.assignedTo) query = query.eq('assigned_to_id', params.assignedTo)
   } else {
     query = query.or(`owner_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
   }
