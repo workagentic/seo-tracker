@@ -13,5 +13,8 @@ export async function getAppSettings(supabase: SupabaseClient): Promise<AppSetti
     ga4_property_id: null,
     updated_by: null,
     updated_at: new Date(0).toISOString(),
+    domain_created_at: null,
+    domain_expires_at: null,
+    domain_updated_at: null,
   }
 }

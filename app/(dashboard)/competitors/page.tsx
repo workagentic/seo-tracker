@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getCurrentProfile } from '@/lib/auth'
 import { getLatestSnapshot, getAllSnapshots } from '@/lib/metrics'
+import { getAppSettings } from '@/lib/settings'
 import { CompetitorTable } from '@/components/competitors/competitor-table'
 import { AddCompetitorDialog } from '@/components/competitors/add-competitor-dialog'
 import { SyncCompetitorsButton } from '@/components/competitors/sync-competitors-button'
@@ -9,10 +10,11 @@ import type { Competitor } from '@/types'
 export default async function CompetitorsPage() {
   const profile = await getCurrentProfile()
   const supabase = await createServerSupabaseClient()
-  const [{ data }, eaSnapshot, eaSnapshots] = await Promise.all([
+  const [{ data }, eaSnapshot, eaSnapshots, appSettings] = await Promise.all([
     supabase.from('competitors').select('*').eq('is_active', true).order('domain_rating', { ascending: false, nullsFirst: false }),
     getLatestSnapshot(supabase),
     getAllSnapshots(supabase),
+    getAppSettings(supabase),
   ])
   const canSync = profile && ['admin', 'senior'].includes(profile.role)
 
@@ -30,6 +32,11 @@ export default async function CompetitorsPage() {
         isAdmin={profile?.role === 'admin'}
         eaSnapshot={eaSnapshot}
         eaSnapshots={eaSnapshots}
+        eaDomainRegistration={{
+          domain_created_at: appSettings.domain_created_at,
+          domain_expires_at: appSettings.domain_expires_at,
+          domain_updated_at: appSettings.domain_updated_at,
+        }}
       />
     </div>
   )

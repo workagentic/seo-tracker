@@ -139,6 +139,11 @@ export interface Competitor {
   last_synced_at: string | null
   is_active: boolean
   created_at: string
+  // RDAP-sourced (lib/rdap/client.ts), fetched once on add + manual refresh -- not part of
+  // the Ahrefs sync (migration 0032_domain_registration.sql).
+  domain_created_at: string | null
+  domain_expires_at: string | null
+  domain_updated_at: string | null
 }
 
 export interface WeeklyReportKpi {
@@ -294,6 +299,9 @@ export interface AppSettings {
   ga4_property_id: string | null
   updated_by: string | null
   updated_at: string
+  domain_created_at: string | null
+  domain_expires_at: string | null
+  domain_updated_at: string | null
 }
 
 export interface SyncLog {

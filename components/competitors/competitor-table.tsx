@@ -7,8 +7,61 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
 import { compareToEA, type MetricComparison } from '@/lib/competitors'
+import { formatDomainAge } from '@/lib/domain-age'
 import { CompetitorHistoryRow } from './competitor-history-row'
 import { EaHistoryRow } from './ea-history-row'
+
+function formatDomainDate(d: string | null): string {
+  return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+}
+
+interface DomainRegistration {
+  domain_created_at: string | null
+  domain_expires_at: string | null
+  domain_updated_at: string | null
+}
+
+// RDAP-sourced domain age (CLAUDE.md-adjacent feature, 23 Sep 2026 session) -- age as the
+// visible value, Created/Expires/Updated On in a native hover tooltip (no new popover
+// component needed for 3 secondary dates), plus an admin-only refresh action since this data
+// barely changes and isn't part of the regular sync.
+function DomainAgeCell({
+  registration,
+  isAdmin,
+  onRefresh,
+}: {
+  registration: DomainRegistration
+  isAdmin: boolean
+  onRefresh: () => Promise<void>
+}) {
+  const [refreshing, setRefreshing] = useState(false)
+  const tooltip = `Created: ${formatDomainDate(registration.domain_created_at)} · Expires: ${formatDomainDate(registration.domain_expires_at)} · Updated: ${formatDomainDate(registration.domain_updated_at)}`
+
+  return (
+    <td className="px-4 py-2 font-mono text-muted-foreground" title={tooltip}>
+      {formatDomainAge(registration.domain_created_at)}
+      {isAdmin && (
+        <button
+          type="button"
+          title="Refresh domain info"
+          disabled={refreshing}
+          className="ml-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          onClick={async (e) => {
+            e.stopPropagation()
+            setRefreshing(true)
+            try {
+              await onRefresh()
+            } finally {
+              setRefreshing(false)
+            }
+          }}
+        >
+          {refreshing ? '…' : '↻'}
+        </button>
+      )}
+    </td>
+  )
+}
 
 function DeltaBadge({ comparison }: { comparison: MetricComparison }) {
   if (comparison.direction === 'no-data' || comparison.deltaPct === null) return null
@@ -48,6 +101,7 @@ function sortValue(c: Competitor, key: string): unknown {
     case 'keywords_top_3': return c.keywords_top_3
     case 'est_traffic_value': return c.est_traffic_value
     case 'referring_domains': return c.referring_domains
+    case 'domain_created_at': return c.domain_created_at
     case 'last_synced_at': return c.last_synced_at
     default: return null
   }
@@ -58,11 +112,13 @@ export function CompetitorTable({
   isAdmin,
   eaSnapshot,
   eaSnapshots,
+  eaDomainRegistration,
 }: {
   competitors: Competitor[]
   isAdmin: boolean
   eaSnapshot: MetricSnapshot | null
   eaSnapshots: MetricSnapshot[]
+  eaDomainRegistration: DomainRegistration
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -100,6 +156,7 @@ export function CompetitorTable({
               <SortableTh label="#1–3 Keywords" sortKey="keywords_top_3" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Est. Value" sortKey="est_traffic_value" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Ref. Domains" sortKey="referring_domains" currentSort={sort} onSort={toggleSort} />
+              <SortableTh label="Domain Age" sortKey="domain_created_at" currentSort={sort} onSort={toggleSort} />
               <SortableTh label="Last Synced" sortKey="last_synced_at" currentSort={sort} onSort={toggleSort} />
               {isAdmin && <th className="px-4 py-2" />}
             </tr>
@@ -116,12 +173,20 @@ export function CompetitorTable({
                 {eaSnapshot?.traffic_value_monthly ? `$${eaSnapshot.traffic_value_monthly.toLocaleString()}` : '—'}
               </td>
               <td className="px-4 py-2 font-mono text-foreground">{eaSnapshot?.referring_domains_total ?? '—'}</td>
+              <DomainAgeCell
+                registration={eaDomainRegistration}
+                isAdmin={isAdmin}
+                onRefresh={async () => {
+                  await fetch('/api/settings/refresh-domain', { method: 'POST' })
+                  router.refresh()
+                }}
+              />
               <td className="px-4 py-2 text-muted-foreground">
                 {eaSnapshot?.snapshot_date ? new Date(eaSnapshot.snapshot_date).toLocaleDateString() : 'never'}
               </td>
               {isAdmin && <td className="px-4 py-2" />}
             </tr>
-            <EaHistoryRow snapshots={eaSnapshots} colSpan={isAdmin ? 10 : 9} />
+            <EaHistoryRow snapshots={eaSnapshots} colSpan={isAdmin ? 11 : 10} />
             {visibleCompetitors.map((c) => {
               const [dr, traffic, keywords, top3, value, refDomains] = compareToEA(c, eaSnapshot)
               return (
@@ -138,6 +203,14 @@ export function CompetitorTable({
                       <DeltaBadge comparison={value} />
                     </td>
                     <CompetitorCell value={c.referring_domains} comparison={refDomains} />
+                    <DomainAgeCell
+                      registration={c}
+                      isAdmin={isAdmin}
+                      onRefresh={async () => {
+                        await fetch(`/api/competitors/${c.id}/refresh-domain`, { method: 'POST' })
+                        router.refresh()
+                      }}
+                    />
                     <td className="px-4 py-2 text-muted-foreground">{c.last_synced_at ? new Date(c.last_synced_at).toLocaleDateString() : 'never'}</td>
                     {isAdmin && (
                       <td className="px-4 py-2">
@@ -154,13 +227,13 @@ export function CompetitorTable({
                       </td>
                     )}
                   </tr>
-                  <CompetitorHistoryRow competitorId={c.id} colSpan={isAdmin ? 9 : 8} />
+                  <CompetitorHistoryRow competitorId={c.id} colSpan={isAdmin ? 10 : 9} />
                 </Fragment>
               )
             })}
             {visibleCompetitors.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9} className="px-4 py-6 text-center text-muted-foreground">No competitors match your search.</td>
+                <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-center text-muted-foreground">No competitors match your search.</td>
               </tr>
             )}
           </tbody>
