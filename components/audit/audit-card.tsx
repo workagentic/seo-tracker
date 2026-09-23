@@ -17,6 +17,11 @@ const SEVERITY_BORDER: Record<string, string> = {
   low: 'border-l-border',
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  gsc: 'GSC',
+  pagespeed: 'PageSpeed',
+}
+
 export function AuditCard({
   report,
   linkedTasks = [],
@@ -32,6 +37,9 @@ export function AuditCard({
           <p className="text-xs text-muted-foreground">{report.category} · assigned to {report.assigned_profile?.full_name ?? 'unassigned'}</p>
         </div>
         <div className="flex gap-2">
+          {report.source !== 'manual' && (
+            <Badge className="bg-indigo-100 text-indigo-700">{SOURCE_LABELS[report.source]}</Badge>
+          )}
           {report.severity && <Badge className={SEVERITY_STYLES[report.severity]}>{report.severity}</Badge>}
           <Badge variant="outline">{report.status.replace('_', ' ')}</Badge>
         </div>

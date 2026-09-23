@@ -3,6 +3,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { AuditCard } from '@/components/audit/audit-card'
 import { AuditFilters } from '@/components/audit/audit-filters'
 import { NewFindingDialog } from '@/components/audit/new-finding-dialog'
+import { SyncButton } from '@/components/dashboard/sync-button'
 import type { AuditReport } from '@/types'
 
 export default async function AuditPage({
@@ -47,7 +48,12 @@ export default async function AuditPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Audit Reports</h1>
-        {profile && ['admin', 'senior'].includes(profile.role) && <NewFindingDialog />}
+        {profile && ['admin', 'senior'].includes(profile.role) && (
+          <div className="flex gap-2">
+            <SyncButton endpoint="/api/audit/gsc-sync" label="Check GSC Issues" />
+            <NewFindingDialog />
+          </div>
+        )}
       </div>
       <AuditFilters />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
