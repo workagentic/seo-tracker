@@ -7,7 +7,6 @@ import { runClaritySync } from '@/lib/clarity/sync'
 import { generateAndSaveWeeklyReport } from '@/lib/weekly-report'
 import { getQuarterlyTargets, resolveTarget } from '@/lib/targets'
 import { getCurrentQuarter } from '@/lib/constants'
-import type { Competitor } from '@/types'
 
 // Vercel Cron has no logged-in user, so this route authenticates via a shared secret
 // (Vercel sends `Authorization: Bearer ${CRON_SECRET}` for jobs configured with a secret)
@@ -25,23 +24,10 @@ export async function GET(request: Request) {
   const ga4 = await runGa4Sync(admin, null)
   const clarity = await runClaritySync(admin, null)
 
-  const { data: activeCompetitors } = await admin.from('competitors').select('*').eq('is_active', true)
-  const today = new Date().toISOString().slice(0, 10)
-
-  let snapshotted = 0
-  for (const c of (activeCompetitors as Competitor[]) ?? []) {
-    const { error } = await admin.from('competitor_snapshots').insert({
-      competitor_id: c.id,
-      snapshot_date: today,
-      domain_rating: c.domain_rating,
-      organic_traffic: c.organic_traffic,
-      organic_keywords: c.organic_keywords,
-      keywords_top_3: c.keywords_top_3,
-      est_traffic_value: c.est_traffic_value,
-      referring_domains: c.referring_domains,
-    } as never)
-    if (!error) snapshotted++
-  }
+  // Snapshot history is now recorded by runCompetitorSync itself (see its comment) so both
+  // the manual "Sync competitors" button and this cron populate competitor_snapshots.
+  const snapshotted =
+    'results' in competitors.body ? competitors.body.results.filter((r) => r.status === 'success').length : 0
 
   const quarter = getCurrentQuarter(new Date())
   const allTargets = await getQuarterlyTargets(admin)

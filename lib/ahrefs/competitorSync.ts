@@ -25,6 +25,8 @@ export async function runCompetitorSync(admin: SupabaseClient, triggeredBy: stri
   const results: { domain: string; status: 'success' | 'error'; message?: string }[] = []
   const active = (competitors as Competitor[]) ?? []
 
+  const snapshotDate = new Date().toISOString().slice(0, 10)
+
   for (let i = 0; i < active.length; i++) {
     const competitor = active[i]
     try {
@@ -42,6 +44,41 @@ export async function runCompetitorSync(admin: SupabaseClient, triggeredBy: stri
         } as never)
         .eq('id', competitor.id)
       if (error) throw new Error(error.message)
+
+      // Record today's history row on every successful sync (manual button or weekly cron)
+      // rather than only from the cron — the cron alone was never actually firing (no
+      // CRON_SECRET-authenticated hit ever reached it in sync_logs), so "Show history" was
+      // permanently empty for every competitor. Patch-today's-row, same pattern as
+      // metric_snapshots, so repeat syncs on the same day don't pile up duplicate rows.
+      const snapshotFields = {
+        domain_rating: metrics.domain_rating,
+        organic_traffic: metrics.organic_traffic,
+        organic_keywords: metrics.organic_keywords,
+        keywords_top_3: metrics.keywords_top_3,
+        est_traffic_value: metrics.traffic_value_monthly,
+        referring_domains: metrics.referring_domains_total,
+      }
+      const { data: existingSnapshot } = await admin
+        .from('competitor_snapshots')
+        .select('id')
+        .eq('competitor_id', competitor.id)
+        .eq('snapshot_date', snapshotDate)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (existingSnapshot) {
+        await admin
+          .from('competitor_snapshots')
+          .update(snapshotFields as never)
+          .eq('id', (existingSnapshot as { id: string }).id)
+      } else {
+        await admin.from('competitor_snapshots').insert({
+          competitor_id: competitor.id,
+          snapshot_date: snapshotDate,
+          ...snapshotFields,
+        } as never)
+      }
+
       results.push({ domain: competitor.domain, status: 'success' })
     } catch (err) {
       results.push({
