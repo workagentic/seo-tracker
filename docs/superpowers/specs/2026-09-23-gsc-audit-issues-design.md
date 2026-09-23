@@ -1,60 +1,78 @@
-# GSC Indexing Issues → Audit Reports — Design Spec
+# GSC Indexing Issues + Page Speed → Audit Reports — Design Spec
 
 **Status:** Approved for planning
-**Solves:** User request to surface Google Search Console's website issues inside the
-existing Audit Reports section (`/audit`).
+**Solves:** User request to surface automated website-health issues (originally phrased as
+"downtime, speed, pages not-indexed, redirect issues") inside the existing Audit Reports
+section (`/audit`), sourced from Google APIs rather than manual entry.
 
----
+**Scoped down from the original 4-item request (confirmed with the user):**
+- **"Pages not-indexed" + "Redirect issues"** → covered below via GSC's URL Inspection API.
+- **"Website speed"** → covered below via Google's **PageSpeed Insights API** — a *different*
+  Google product/API from Search Console, not literally "from GSC," but it's the real source
+  for Core Web Vitals/speed data (GSC's own Core Web Vitals report is UI-only, no public API —
+  same class of gap as the Coverage report).
+- **"Website downtime"** → **dropped**. No Google product (Search Console or otherwise)
+  monitors uptime/downtime; that would require a genuinely different kind of service (e.g.
+  UptimeRobot) and is out of scope here.
 
 ## 1. Goal & constraint
 
-Show GSC-reported problems (pages that aren't indexed, sitemap errors) as findings on
-`/audit`, alongside the existing manually-entered findings.
+Show GSC- and PageSpeed-reported problems (pages that aren't indexed, sitemap errors, slow
+pages) as findings on `/audit`, alongside the existing manually-entered findings.
 
 **Hard constraint (confirmed against `lib/gsc/client.ts` and CLAUDE.md Section 8.4's own
-"no separate coverage API" note):** GSC's public API has no bulk "Coverage"/"Enhancements"
-issues export — that report only exists in the GSC web UI. The only real building blocks are:
+"no separate coverage API" note):** GSC's public API has no bulk "Coverage"/"Enhancements"/
+"Core Web Vitals" issues export — those reports only exist in the GSC web UI. The only real
+building blocks are:
 
 - **URL Inspection API** (`urlInspection.index.inspect`) — per-URL indexing status. One call
   per URL, not a site-wide scan.
 - **Sitemaps API** — error/warning counts per submitted sitemap.
+- **PageSpeed Insights API** (`pagespeedonline/v5/runPagespeed`) — per-URL speed/Core Web
+  Vitals, a separate Google API with its own (optional) API key, not the service-account auth
+  the other two use.
 
-This spec is scoped to exactly those two. `indexStatusResult` is the part of URL Inspection
+This spec is scoped to exactly those three. `indexStatusResult` is the part of URL Inspection
 I'm confident is still live; if `mobileUsabilityResult`/`richResultsResult` turn out to also
 still be returned when this is implemented, they're a bonus to fold in later — not promised
 here.
 
 ## 2. Scope decisions (confirmed with the user)
 
-- **Which URLs to inspect:** distinct `target_url` values from active `tracked_keywords` —
-  already the curated set of pages the SEO team cares about, no new admin UI needed.
+- **Which URLs to inspect/check:** distinct `target_url` values from active `tracked_keywords`
+  — already the curated set of pages the SEO team cares about, no new admin UI needed. Same
+  list feeds both the GSC checks and the PageSpeed checks.
 - **Auto-resolve:** when a previously-flagged URL/sitemap now inspects clean, the sync
   auto-resolves that `audit_reports` row (`status = 'resolved'`), matching the existing
   linked-task auto-resolve pattern (Section 8.3/8.7).
 - **Cadence:** both a manual "Check GSC Issues" button (admin/senior) on `/audit`, and folded
   into the existing weekly cron — matching every other integration in this app (Ahrefs, GSC
-  keywords, GA4, Clarity, competitors all have both).
+  keywords, GA4, Clarity, competitors all have both). PageSpeed checks run from the same
+  button/cron pass, not a separate trigger.
 
 ## 3. Schema
 
-`supabase/migrations/0032_audit_gsc_source.sql`:
+`supabase/migrations/0033_audit_finding_source.sql` (renumbered from an earlier draft's
+`0032` — that number was used by the domain-registration migration instead):
 
 ```sql
 alter table audit_reports add column source text not null default 'manual'
-  check (source in ('manual', 'gsc'));
+  check (source in ('manual', 'gsc', 'pagespeed'));
 alter table audit_reports add column source_key text;
 
--- One row per (source, source_key) for GSC-sourced findings, so a re-sync updates/resolves
+-- One row per (source, source_key) for auto-generated findings, so a re-sync updates/resolves
 -- the same row instead of creating duplicates. Manual findings have source_key = null, and
--- Postgres treats NULLs as distinct, so this never constrains them.
-create unique index audit_reports_gsc_source_key_idx on audit_reports (source, source_key)
-  where source = 'gsc';
+-- Postgres treats NULLs as distinct, so this never constrains them. 'gsc' covers both
+-- index-coverage findings (source_key = the page URL) and sitemap findings (source_key = the
+-- sitemap path) -- those two never collide since a sitemap path and a page URL are never
+-- equal. 'pagespeed' is a separate source value, so a URL can independently have both a
+-- GSC finding and a PageSpeed finding without key collisions.
+create unique index audit_reports_auto_source_key_idx on audit_reports (source, source_key)
+  where source in ('gsc', 'pagespeed');
 ```
 
-`source_key` holds the inspected URL (for index-coverage findings) or the sitemap path (for
-sitemap findings) — the stable identifier used to find-and-update the same finding next sync.
-
-`types/index.ts`'s `AuditReport` gets `source: 'manual' | 'gsc'` and `source_key: string | null`.
+`types/index.ts`'s `AuditReport` gets `source: 'manual' | 'gsc' | 'pagespeed'` and
+`source_key: string | null`.
 
 ## 4. Components
 
@@ -111,6 +129,41 @@ responses during implementation don't match exactly):
 Sitemap issues map directly: any sitemap with `errors > 0` → high, `warnings > 0` only →
 medium.
 
+### `lib/pagespeed/client.ts` (new) — pure API client, no DB access
+
+```ts
+interface PageSpeedResult {
+  category: 'FAST' | 'AVERAGE' | 'SLOW' | null  // loadingExperience.overall_category (real
+                                                  // field data); null if Google has no field
+                                                  // data for this URL (common for lower-
+                                                  // traffic pages)
+  performanceScore: number | null  // lighthouseResult.categories.performance.score, 0-1 lab
+                                    // data -- fallback when field data is absent
+}
+fetchPageSpeed(url: string): Promise<PageSpeedResult | null>
+```
+
+`GET https://www.googleapis.com/pagespeedonline/v5/runpagespeed?url={url}&category=performance&strategy=mobile`
+(mobile-only, matching Google's own mobile-first Core Web Vitals stance — desktop is YAGNI
+here). Takes an optional `PAGESPEED_API_KEY` env var appended as `&key=`; works without one at
+a lower shared quota, same "optional key, works either way" shape as this being a genuinely
+free API. Never throws — same `null`-on-failure contract as `fetchDomainRegistration`
+(`lib/rdap/client.ts`), since PSI can fail/timeout per URL and that should never block the
+rest of a batch.
+
+### `lib/pagespeed/issue-classifier.ts` (new) — pure mapping function, unit-testable
+
+```ts
+function classifyPageSpeed(result: PageSpeedResult): { hasIssue: boolean; severity: AuditSeverity | null; summary: string }
+```
+
+- `category === 'SLOW'` → high — real-user Core Web Vitals data says this page is slow.
+- `category === 'AVERAGE'` → medium — "needs improvement."
+- `category === 'FAST'` → OK, no issue.
+- `category === null` (no field data) → fall back to lab data: `performanceScore < 0.5` →
+  medium; `>= 0.5` → OK (deliberately lenient on lab-only data — it's noisier than real field
+  data, so this only flags clearly bad lab scores, not borderline ones).
+
 ### `lib/gsc/auditSync.ts` (new) — DB-integration orchestration
 
 Mirrors `lib/gsc/sync.ts`'s `runGscSync` / `lib/ahrefs/competitorSync.ts`'s
@@ -125,20 +178,24 @@ export async function runGscAuditSync(admin: SupabaseClient, triggeredBy: string
 2. Distinct, non-null `target_url` values from `tracked_keywords where is_active = true`.
 3. For each URL, sequentially with a 300ms delay between calls (a conservative constant,
    `GSC_INSPECTION_DELAY_MS` in `lib/gsc/issues.ts`, gentle on URL Inspection's quota — same
-   spirit as Ahrefs' `AHREFS_INTER_DOMAIN_DELAY_MS`): `fetchUrlInspection` →
-   `classifyCoverageState` → `upsertGscFinding`. A single URL's failure is caught and skipped,
-   not fatal to the batch (same per-item try/catch as `runCompetitorSync`).
-4. `fetchSitemapIssues` once → `upsertGscFinding` per sitemap with errors/warnings.
-5. `upsertGscFinding(admin, { sourceKey, hasIssue, severity, title, finding, recommendation })`:
-   - No issue + an existing non-resolved row for that `source_key` → set `status = 'resolved'`,
-     `resolved_at = now()`.
+   spirit as Ahrefs' `AHREFS_INTER_DOMAIN_DELAY_MS`):
+   - `fetchUrlInspection` → `classifyCoverageState` → `upsertFinding(source: 'gsc', ...)`.
+   - `fetchPageSpeed` → `classifyPageSpeed` → `upsertFinding(source: 'pagespeed', ...)`.
+   - Either call failing is caught and skipped independently — a URL's GSC check failing
+     doesn't skip its PageSpeed check or vice versa, and one URL's failure never aborts the
+     batch (same per-item try/catch as `runCompetitorSync`).
+4. `fetchSitemapIssues` once → `upsertFinding(source: 'gsc', ...)` per sitemap with
+   errors/warnings.
+5. `upsertFinding(admin, { source, sourceKey, hasIssue, severity, title, finding, recommendation })`:
+   - No issue + an existing non-resolved row for that `(source, source_key)` → set
+     `status = 'resolved'`, `resolved_at = now()`.
    - No issue + no existing row → no-op.
    - Issue + existing row → update `title`/`severity`/`finding`/`recommendation`; if that row
      was `resolved`, reopen it to `open` (the issue recurred).
-   - Issue + no existing row → insert (`category: 'technical'`, `source: 'gsc'`, `source_key`,
+   - Issue + no existing row → insert (`category: 'technical'`, `source`, `source_key`,
      `status: 'open'`).
-6. One `sync_logs` row, `source: 'gsc-issues'`, summary like `"Checked 42 URLs: 6 issue(s)
-   found/updated, 2 resolved; sitemap: 1 issue(s)"`.
+6. One `sync_logs` row, `source: 'gsc-issues'`, summary like `"Checked 42 URLs: 6 GSC issue(s),
+   3 speed issue(s) found/updated, 2 resolved; sitemap: 1 issue(s)"`.
 
 ### `app/api/audit/gsc-sync/route.ts` (new)
 
@@ -157,9 +214,9 @@ fold its result into the summary message the same way the others already are.
   `NewFindingDialog`, same admin/senior guard — **no new button component needed**,
   `components/dashboard/sync-button.tsx` was already generalized to take `endpoint`/`label`
   props for exactly this kind of reuse (see the GSC-keywords spec, Section 3 "UI changes").
-- `components/audit/audit-card.tsx`: small "GSC" badge next to the severity/status badges
-  when `report.source === 'gsc'`, so auto-generated findings are visually distinguishable
-  from manually-entered ones.
+- `components/audit/audit-card.tsx`: small badge next to the severity/status badges when
+  `report.source !== 'manual'` — "GSC" or "PageSpeed" depending on which — so auto-generated
+  findings are visually distinguishable from manually-entered ones.
 
 ## 5. Data flow
 
@@ -168,21 +225,25 @@ Admin clicks "Check GSC Issues" (or weekly cron fires)
   → runGscAuditSync(admin, triggeredBy)
     → getAppSettings() for gsc_site_url
     → distinct target_urls from active tracked_keywords
-    → for each url: fetchUrlInspection → classifyCoverageState → upsertGscFinding
-    → fetchSitemapIssues → upsertGscFinding per sitemap
+    → for each url:
+        fetchUrlInspection → classifyCoverageState → upsertFinding(source: 'gsc')
+        fetchPageSpeed → classifyPageSpeed → upsertFinding(source: 'pagespeed')
+    → fetchSitemapIssues → upsertFinding(source: 'gsc') per sitemap
     → insert sync_logs row
-  → 200 { checked, issuesFound, resolved, summary }
-→ router.refresh() re-renders /audit from the DB, GSC-sourced cards show the "GSC" badge
+  → 200 { checked, gscIssues, speedIssues, resolved, summary }
+→ router.refresh() re-renders /audit from the DB, auto-generated cards show their source badge
 ```
 
 ## 6. Error handling
 
-- Missing `gsc_site_url` or a Google auth/API failure on the *first* call → whole sync aborts,
-  502, logged to `sync_logs` — no partial writes (mirrors `runGscSync`).
-- A single URL's inspection failing mid-batch (timeout, malformed response) is caught,
-  skipped, and counted — doesn't abort the rest (mirrors `runCompetitorSync`'s per-domain
-  try/catch).
-- Sitemap fetch failing doesn't block the URL-inspection half or vice versa — they're
+- Missing `gsc_site_url` or a Google auth/API failure on the *first* GSC call → GSC checks
+  abort for the rest of the run, 502-equivalent logged to `sync_logs` — but PageSpeed checks
+  (which need no Google auth) still run, since they're independent of GSC's service-account
+  setup.
+- A single URL's inspection or PageSpeed check failing mid-batch (timeout, malformed response)
+  is caught, skipped, and counted — doesn't abort the rest (mirrors `runCompetitorSync`'s
+  per-domain try/catch).
+- Sitemap fetch failing doesn't block the URL-inspection or PageSpeed halves — all three are
   independent steps, each wrapped in its own try/catch.
 
 ## 7. Testing
@@ -191,17 +252,23 @@ Admin clicks "Check GSC Issues" (or weekly cron fires)
   every row in the mapping table above, plus the catch-all case.
 - `lib/gsc/issues.test.ts` — mocks `fetch`, mirrors `lib/gsc/client.test.ts`'s style (success
   case, non-2xx error case, request shape).
+- `lib/pagespeed/client.test.ts` — mocks `fetch`, same style (field-data present, field-data
+  absent + lab fallback, non-2xx, network error → null).
+- `lib/pagespeed/issue-classifier.test.ts` — table-driven, all four `classifyPageSpeed` cases.
 - `lib/gsc/auditSync.test.ts` (if the codebase's convention allows testing DB-integration
   logic with a mocked Supabase client — otherwise this stays untested like `runGscSync`/
   `runCompetitorSync`, both explicitly documented as such): covers the upsert decision matrix
   (no issue/no row, no issue/existing row → resolve, issue/no row → insert, issue/existing
-  open row → update, issue/existing resolved row → reopen).
+  open row → update, issue/existing resolved row → reopen), across both `source` values.
 
 ## 8. Explicitly out of scope
 
+- **Website downtime/uptime monitoring** — dropped per the user's confirmation; no Google
+  product covers this, it would need a genuinely separate service (e.g. UptimeRobot).
 - `mobileUsabilityResult`/`richResultsResult` from URL Inspection — not promised, may be added
   later if still live.
+- Desktop PageSpeed checks — mobile-only, matching Google's own mobile-first stance.
 - Any URL source other than `tracked_keywords.target_url` (top pages, admin-managed list) —
   can be revisited if the tracked-keywords set proves too narrow.
-- Historical trend of GSC issues over time (no `audit_gsc_issue_history` table) — `audit_reports`
+- Historical trend of GSC/PageSpeed issues over time (no history table) — `audit_reports`
   already has no history table for manual findings either, consistent with existing scope.
