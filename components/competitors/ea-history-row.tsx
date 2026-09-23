@@ -1,57 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import { buildCompetitorHistory, COMPETITOR_HISTORY_FIELDS } from '@/lib/snapshot-history'
+import { buildMetricHistory, HISTORY_METRIC_FIELDS } from '@/lib/snapshot-history'
 import { Button } from '@/components/ui/button'
-import type { CompetitorSnapshot } from '@/types'
+import type { MetricSnapshot } from '@/types'
 
 function formatValue(key: string, value: number): string {
-  if (key === 'est_traffic_value') return `$${value.toLocaleString()}`
+  if (key === 'traffic_value_monthly') return `$${value.toLocaleString()}`
+  if (key === 'avg_keywords_per_page') return value.toFixed(1)
   return value.toLocaleString()
 }
 
-// Per-competitor weekly-snapshot history (CLAUDE.md Section 14 Phase 6), fetched on demand
-// when expanded rather than pre-loaded for every competitor up front.
-export function CompetitorHistoryRow({ competitorId, colSpan }: { competitorId: string; colSpan: number }) {
+// EA's own weekly-snapshot history on the Competitors page, mirroring CompetitorHistoryRow's
+// per-competitor toggle. Unlike that one, EA's full metric_snapshots history is already
+// server-loaded (same data the Dashboard's History tab uses), so this just expands/collapses
+// rather than fetching on demand.
+export function EaHistoryRow({ snapshots, colSpan }: { snapshots: MetricSnapshot[]; colSpan: number }) {
   const [expanded, setExpanded] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [snapshots, setSnapshots] = useState<CompetitorSnapshot[] | null>(null)
-
-  async function toggle() {
-    if (!expanded && snapshots === null) {
-      setLoading(true)
-      try {
-        const res = await fetch(`/api/competitors/${competitorId}/snapshots`)
-        if (res.ok) {
-          const body = await res.json()
-          setSnapshots(body.snapshots ?? [])
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    setExpanded((e) => !e)
-  }
-
-  const history = snapshots ? buildCompetitorHistory(snapshots) : []
+  const history = buildMetricHistory(snapshots)
 
   return (
-    <tr>
+    <tr className="bg-primary/5">
       <td colSpan={colSpan} className="border-t-0 px-4 py-1">
-        <Button size="xs" variant="ghost" onClick={toggle}>
+        <Button size="xs" variant="ghost" onClick={() => setExpanded((e) => !e)}>
           {expanded ? 'Hide history' : 'Show history'}
         </Button>
         {expanded && (
           <div className="mt-2 max-h-80 space-y-2 overflow-y-auto">
-            {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
-            {!loading && history.length === 0 && <p className="text-sm text-muted-foreground">No snapshots recorded yet.</p>}
-            {!loading && history.map(({ weekStart, snapshot, previous }) => (
+            {history.length === 0 && <p className="text-sm text-muted-foreground">No snapshots recorded yet.</p>}
+            {history.map(({ weekStart, snapshot, previous }) => (
               <div key={snapshot.id} className="rounded-md border border-border bg-muted/30 p-3">
                 <div className="mb-2 text-xs font-medium text-muted-foreground">
                   Week of {new Date(weekStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
-                  {COMPETITOR_HISTORY_FIELDS.map(({ key, label }) => {
+                  {HISTORY_METRIC_FIELDS.map(({ key, label }) => {
                     const value = snapshot[key]
                     const prevValue = previous?.[key] ?? null
                     const delta = value !== null && prevValue !== null ? value - prevValue : null

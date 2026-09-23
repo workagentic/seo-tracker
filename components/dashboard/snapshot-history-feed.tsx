@@ -10,8 +10,9 @@ function formatValue(key: string, value: number): string {
   return value.toLocaleString()
 }
 
-// Weekly-snapshot scrollable feed (CLAUDE.md Section 14 Phase 6): one card per
-// metric_snapshots row, newest first, all 12 KPIs + week-over-week change.
+// Weekly-snapshot scrollable feed (CLAUDE.md Section 14 Phase 6): one card per Monday-starting
+// week (grouped from whatever metric_snapshots rows fall in it), newest first, all 12 KPIs +
+// week-over-week change.
 export function SnapshotHistoryFeed({ snapshots }: { snapshots: MetricSnapshot[] }) {
   const history = buildMetricHistory(snapshots)
 
@@ -21,11 +22,11 @@ export function SnapshotHistoryFeed({ snapshots }: { snapshots: MetricSnapshot[]
 
   return (
     <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
-      {history.map(({ snapshot, previous }) => (
+      {history.map(({ weekStart, snapshot, previous }) => (
         <div key={snapshot.id} className="rounded-md border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-medium text-foreground">
-              {new Date(snapshot.snapshot_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              Week of {new Date(weekStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </h3>
             {snapshot.quarter_label && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">

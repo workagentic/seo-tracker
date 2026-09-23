@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { SortableTh, compareValues, type SortState } from '@/components/ui/sortable-th'
 import { compareToEA, type MetricComparison } from '@/lib/competitors'
 import { CompetitorHistoryRow } from './competitor-history-row'
+import { EaHistoryRow } from './ea-history-row'
 
 function DeltaBadge({ comparison }: { comparison: MetricComparison }) {
   if (comparison.direction === 'no-data' || comparison.deltaPct === null) return null
@@ -56,10 +57,12 @@ export function CompetitorTable({
   competitors,
   isAdmin,
   eaSnapshot,
+  eaSnapshots,
 }: {
   competitors: Competitor[]
   isAdmin: boolean
   eaSnapshot: MetricSnapshot | null
+  eaSnapshots: MetricSnapshot[]
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -118,6 +121,7 @@ export function CompetitorTable({
               </td>
               {isAdmin && <td className="px-4 py-2" />}
             </tr>
+            <EaHistoryRow snapshots={eaSnapshots} colSpan={isAdmin ? 10 : 9} />
             {visibleCompetitors.map((c) => {
               const [dr, traffic, keywords, top3, value, refDomains] = compareToEA(c, eaSnapshot)
               return (

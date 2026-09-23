@@ -15,20 +15,49 @@ export const HISTORY_METRIC_FIELDS: { key: MetricKey; label: string }[] = [
   { key: 'indexed_content_pages', label: 'Indexed Content Pages' },
 ]
 
+// The Monday (ISO week start) that `dateStr` (a 'YYYY-MM-DD' snapshot_date) falls in, as a
+// 'YYYY-MM-DD' string. UTC throughout so this doesn't shift by timezone.
+export function mondayOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  const day = d.getUTCDay() // 0 = Sunday .. 6 = Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  d.setUTCDate(d.getUTCDate() + diffToMonday)
+  return d.toISOString().slice(0, 10)
+}
+
+// Snapshots now get written on every sync (manual or cron), not just once a week, so raw
+// snapshot_date history reads as a cluttered near-daily feed instead of the weekly view this
+// was designed for. Group by the Monday-starting week instead -- one entry per week, the most
+// recent snapshot within that week (input is oldest-first, so a later same-week snapshot
+// overwrites an earlier one) -- and pair each week with the prior week's representative
+// snapshot for the delta, not just whatever the previous individual row happened to be.
+function groupByWeek<T extends { snapshot_date: string }>(
+  snapshotsOldestFirst: T[]
+): { weekStart: string; snapshot: T }[] {
+  const byWeek = new Map<string, T>()
+  for (const snapshot of snapshotsOldestFirst) {
+    byWeek.set(mondayOf(snapshot.snapshot_date), snapshot)
+  }
+  return Array.from(byWeek.entries())
+    .map(([weekStart, snapshot]) => ({ weekStart, snapshot }))
+    .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+}
+
 export interface MetricHistoryEntry {
+  weekStart: string
   snapshot: MetricSnapshot
   previous: MetricSnapshot | null
 }
 
 // Dashboard's weekly-snapshot scrollable feed (CLAUDE.md Section 14 Phase 6) -- one card per
-// metric_snapshots row (the weekly cron is what usually creates these, but this reads
-// whatever's there rather than needing a dedicated "is this a weekly snapshot" flag the
-// schema doesn't have), newest first, each paired with the row immediately before it
-// chronologically for a week-over-week delta.
+// Monday-starting week, newest first, each paired with the representative snapshot of the
+// week immediately before it for a week-over-week delta.
 export function buildMetricHistory(snapshotsOldestFirst: MetricSnapshot[]): MetricHistoryEntry[] {
-  const entries = snapshotsOldestFirst.map((snapshot, i) => ({
-    snapshot,
-    previous: i > 0 ? snapshotsOldestFirst[i - 1] : null,
+  const weeks = groupByWeek(snapshotsOldestFirst)
+  const entries = weeks.map((w, i) => ({
+    weekStart: w.weekStart,
+    snapshot: w.snapshot,
+    previous: i > 0 ? weeks[i - 1].snapshot : null,
   }))
   return entries.reverse()
 }
@@ -51,14 +80,17 @@ export const COMPETITOR_HISTORY_FIELDS: { key: CompetitorMetricKey; label: strin
 ]
 
 export interface CompetitorHistoryEntry {
+  weekStart: string
   snapshot: CompetitorSnapshot
   previous: CompetitorSnapshot | null
 }
 
 export function buildCompetitorHistory(snapshotsOldestFirst: CompetitorSnapshot[]): CompetitorHistoryEntry[] {
-  const entries = snapshotsOldestFirst.map((snapshot, i) => ({
-    snapshot,
-    previous: i > 0 ? snapshotsOldestFirst[i - 1] : null,
+  const weeks = groupByWeek(snapshotsOldestFirst)
+  const entries = weeks.map((w, i) => ({
+    weekStart: w.weekStart,
+    snapshot: w.snapshot,
+    previous: i > 0 ? weeks[i - 1].snapshot : null,
   }))
   return entries.reverse()
 }
