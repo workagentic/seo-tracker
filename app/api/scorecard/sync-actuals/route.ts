@@ -6,6 +6,7 @@ import { fetchGscQueryPositions } from '@/lib/gsc/client'
 import { computeGscScorecardMetrics } from '@/lib/gsc/scorecard'
 import { fetchAhrefsMetrics } from '@/lib/ahrefs/client'
 import { canSyncScorecardActuals } from '@/lib/scorecard'
+import { getLatestSnapshot } from '@/lib/metrics'
 
 // Scorecard Actual/Variance auto-sync (CLAUDE.md Section 14 Phase 5). Fixed source priority,
 // confirmed with Abdullah: GSC-sourced for Organic Traffic Global/US, Organic Keywords
@@ -82,6 +83,10 @@ export async function POST() {
         .from('metric_snapshots')
         .insert({
           snapshot_date: snapshotDate,
+          // referring_domains_quality is manual-census-only and isn't part of automatedFields
+          // — carry the most recent value forward so a fresh day's row doesn't silently reset
+          // it to null (same fix as /api/sync/ahrefs).
+          referring_domains_quality: (await getLatestSnapshot(admin))?.referring_domains_quality ?? null,
           ...automatedFields,
           created_by: profile.id,
         } as never)

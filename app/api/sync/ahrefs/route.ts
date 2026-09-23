@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { fetchAhrefsMetrics } from '@/lib/ahrefs/client'
 import { getCurrentQuarter } from '@/lib/constants'
 import { getAppSettings } from '@/lib/settings'
+import { getLatestSnapshot } from '@/lib/metrics'
 
 export async function POST() {
   const profile = await getCurrentProfile()
@@ -66,6 +67,10 @@ export async function POST() {
         .insert({
           snapshot_date: snapshotDate,
           quarter_label: quarter,
+          // referring_domains_quality is manual-census-only (CLAUDE.md Section 12 note 3) and
+          // isn't part of automatedFields — carry the most recent value forward so a fresh
+          // day's row doesn't silently reset it to null until the next manual entry.
+          referring_domains_quality: (await getLatestSnapshot(admin))?.referring_domains_quality ?? null,
           ...automatedFields,
           created_by: profile.id,
         } as never)
