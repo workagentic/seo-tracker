@@ -36,7 +36,7 @@ export function StatTile({
           <span className="font-mono text-2xl font-semibold text-foreground">
             {actual !== null ? fmt(actual) : '—'}
           </span>
-          <RagBadge status={status} />
+          {status !== 'amber' && <RagBadge status={status} />}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Target: <span className="font-mono">{fmt(target)}</span>
