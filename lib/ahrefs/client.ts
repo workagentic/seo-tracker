@@ -6,19 +6,32 @@ const REQUEST_DELAY_MS = 1100
 // Ahrefs caps organic-keywords/top-pages results per request; counts below undercount once a
 // metric (e.g. org_keywords) exceeds this, which only happens in later quarters (see QUARTERLY_TARGETS).
 const RESULT_LIMIT = '1000'
+const RETRY_DELAY_MS = 1000
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function ahrefsGet<T>(path: string, params: Record<string, string>): Promise<T> {
+// Ahrefs' API occasionally returns a transient 5xx (confirmed 12 Oct 2026 — a scorecard-
+// actuals sync failed on /site-explorer/metrics with a 500, then the exact same endpoint
+// succeeded ~90 minutes later for the regular Ahrefs sync). Retry once before giving up; a
+// 4xx (bad request/auth) is never transient, so those fail immediately without a retry.
+export async function ahrefsGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = new URL(`${AHREFS_BASE}${path}`)
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.AHREFS_API_KEY}` },
-  })
-  if (!res.ok) throw new Error(`Ahrefs API error: ${res.status} ${res.statusText} (${path})`)
-  return res.json()
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${process.env.AHREFS_API_KEY}` },
+    })
+    if (res.ok) return res.json()
+    if (res.status >= 500 && attempt === 0) {
+      await sleep(RETRY_DELAY_MS)
+      continue
+    }
+    throw new Error(`Ahrefs API error: ${res.status} ${res.statusText} (${path})`)
+  }
+  throw new Error(`Ahrefs API error: exhausted retries (${path})`)
 }
 
 interface DomainRatingResponse {
