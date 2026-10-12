@@ -59,4 +59,11 @@ describe('fetchDomainRegistration', () => {
     const result = await fetchDomainRegistration('example.com')
     expect(result).toBeNull()
   })
+
+  it('sends a browser-style User-Agent so Cloudflare does not block the request', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response)
+    await fetchDomainRegistration('example.com')
+    const [, options] = vi.mocked(fetch).mock.calls[0]
+    expect((options?.headers as Record<string, string>)['User-Agent']).toMatch(/Mozilla/)
+  })
 })

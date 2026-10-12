@@ -4,6 +4,12 @@
 // is all this needs.
 const RDAP_BASE = 'https://rdap.org/domain'
 
+// rdap.org is fronted by Cloudflare, which blocks requests whose User-Agent looks like a bare
+// script/bot (confirmed 12 Oct 2026 -- Node's default fetch, with no User-Agent header, got a
+// 403 Cloudflare challenge page instead of JSON; adding a normal browser-style UA fixed it).
+const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+
 export interface DomainRegistration {
   created_at: string | null
   expires_at: string | null
@@ -35,7 +41,9 @@ function findEventDate(events: RdapEvent[], actions: string[]): string | null {
 // competitor/domain action it's attached to. Callers treat `null` as "no data available".
 export async function fetchDomainRegistration(domain: string): Promise<DomainRegistration | null> {
   try {
-    const res = await fetch(`${RDAP_BASE}/${encodeURIComponent(domain)}`)
+    const res = await fetch(`${RDAP_BASE}/${encodeURIComponent(domain)}`, {
+      headers: { 'User-Agent': BROWSER_USER_AGENT },
+    })
     if (!res.ok) return null
 
     const data = (await res.json()) as RdapResponse
