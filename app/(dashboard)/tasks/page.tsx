@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/auth'
 import { TaskList } from '@/components/tasks/task-list'
 import { TaskFilters } from '@/components/tasks/task-filters'
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog'
+import { ExcelImportDialog } from '@/components/tasks/excel-import-dialog'
 import type { Task } from '@/types'
 
 export default async function TasksPage({
@@ -54,7 +55,10 @@ export default async function TasksPage({
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Task Tracker</h1>
         {canManageAllTasks && (
-          <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} currentProfile={profile} />
+          <div className="flex gap-2">
+            <ExcelImportDialog />
+            <TaskFormDialog owners={owners ?? []} categories={categories ?? []} findings={findings ?? []} keywords={keywords ?? []} currentProfile={profile} />
+          </div>
         )}
       </div>
       <TaskFilters owners={owners ?? []} categories={categories ?? []} isAdmin={canManageAllTasks} />
